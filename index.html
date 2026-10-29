@@ -1,0 +1,4277 @@
+<!DOCTYPE html><html lang="es"><head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+  <title>CARD MINE 3x3</title>
+  <style>
+    /* Reset y pantalla */
+    :root {
+      --color-bg: #1c1917;
+      --color-accent: #f59e0b;
+      --transition-fast: 150ms;
+      --ease-out: cubic-bezier(0, 0, 0.2, 1);
+      --ease-bounce: cubic-bezier(0.68, -0.6, 0.32, 1.6);
+      --space-xs: 8px;
+      --space-sm: 16px;
+      --space-md: 24px;
+      --space-lg: 32px;
+      --space-xl: 48px;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html,
+    body {
+      width: 100%;
+      height: 100%;
+      margin: 0;
+      padding: 0;
+      overflow: hidden;
+      background: var(--color-bg);
+      touch-action: manipulation;
+      -ms-touch-action: manipulation;
+      font-family: "Poppins", sans-serif;
+    }
+
+    #game-world {
+      position: relative;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background: var(--color-bg);
+    }
+
+    #game-canvas {
+      display: block;
+      visibility: hidden;
+      width: 100%;
+      height: 100%;
+      touch-action: manipulation;
+      -ms-touch-action: manipulation;
+      user-select: none;
+      -webkit-user-select: none;
+      cursor: default;
+    }
+
+    #game-canvas:focus-visible {
+      outline: 4px solid var(--color-accent);
+      outline-offset: -8px;
+    }
+
+    #game-canvas:disabled {
+      opacity: 0.7;
+      cursor: not-allowed;
+    }
+
+    /* Capa DOM real para que Game Over siempre quede por encima del canvas. */
+    .game-over-overlay {
+      position: absolute;
+      inset: 0;
+      z-index: 9999;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      padding: 36px;
+      background: rgba(3, 9, 16, 0.82);
+      touch-action: manipulation;
+    }
+
+    .game-over-overlay.is-visible {
+      display: flex;
+    }
+
+    .game-over-panel {
+      width: 100%;
+      max-width: 608px;
+      padding: 48px;
+      border: 3px solid rgba(255, 135, 148, 0.78);
+      border-radius: 34px;
+      background: linear-gradient(145deg, #403226, #1c1712);
+      box-shadow: 0 24px 70px rgba(0, 0, 0, 0.7);
+      color: #f2e7d8;
+      text-align: center;
+      font-family: "Poppins", sans-serif;
+    }
+
+    .game-over-panel h2 {
+      margin: 0 0 18px;
+      color: #ff9aa5;
+      font-size: clamp(26px, 5vw, 38px);
+      line-height: 1.15;
+    }
+
+    .game-over-panel p {
+      margin: 0 0 28px;
+      color: #d3e0e8;
+      font-size: clamp(16px, 3.2vw, 22px);
+    }
+
+    .game-over-stats {
+      display: grid;
+      gap: 14px;
+      margin-bottom: 28px;
+    }
+
+    .game-over-stat {
+      display: flex;
+      min-height: 72px;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 14px 22px;
+      border-radius: 18px;
+      background: rgba(20, 14, 10, 0.7);
+      text-align: left;
+    }
+
+    .game-over-stat span {
+      color: #c9b49a;
+      font-size: clamp(13px, 2.6vw, 17px);
+      font-weight: 600;
+    }
+
+    .game-over-stat strong {
+      color: #ffd878;
+      font-size: clamp(24px, 4.5vw, 34px);
+    }
+
+    #restart-button {
+      width: 100%;
+      min-height: 82px;
+      border: 0;
+      border-radius: 22px;
+      background: linear-gradient(135deg, #f5b942, #d97706);
+      color: #29180a;
+      font: 700 clamp(18px, 3.5vw, 24px) "Poppins", sans-serif;
+      cursor: pointer;
+      touch-action: manipulation;
+    }
+
+    #restart-button:focus-visible {
+      outline: 4px solid #fff1bd;
+      outline-offset: 4px;
+    }
+
+    /* Menú independiente y opaco: nunca deja traslucir el tablero de juego. */
+    .main-menu-overlay {
+      position: absolute;
+      inset: 0;
+      z-index: 9998;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 42px 56px;
+      overflow: hidden;
+      color: #f6e7ca;
+      text-align: center;
+      background-color: #11111a;
+      background-image:
+        radial-gradient(ellipse at 50% 31%, rgba(255, 154, 55, 0.25), transparent 34%),
+        radial-gradient(ellipse at 10% 75%, rgba(31, 190, 220, 0.16), transparent 28%),
+        radial-gradient(ellipse at 91% 66%, rgba(159, 72, 224, 0.16), transparent 30%),
+        repeating-linear-gradient(178deg, transparent 0 92px, rgba(206, 193, 174, 0.035) 93px, transparent 96px 174px),
+        linear-gradient(180deg, #292635 0%, #1d1b27 43%, #11151a 100%);
+      opacity: 0;
+      visibility: hidden;
+      pointer-events: none;
+      transition: opacity 320ms ease, visibility 320ms ease;
+      touch-action: manipulation;
+    }
+
+    .main-menu-overlay.is-visible {
+      opacity: 1;
+      visibility: visible;
+      pointer-events: auto;
+    }
+
+    .menu-cave-scene {
+      position: absolute;
+      inset: 0;
+      z-index: 0;
+      overflow: hidden;
+      pointer-events: none;
+      background:
+        radial-gradient(ellipse at 50% 102%, rgba(77, 92, 51, 0.38), transparent 34%),
+        repeating-linear-gradient(0deg, transparent 0 112px, rgba(5, 7, 12, 0.18) 113px 117px, transparent 118px 204px);
+    }
+
+    .menu-cave-scene::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      opacity: 0.34;
+      background:
+        linear-gradient(154deg, transparent 0 24%, rgba(4, 5, 9, 0.42) 24.3% 25%, transparent 25.3% 100%),
+        linear-gradient(28deg, transparent 0 67%, rgba(4, 5, 9, 0.34) 67.3% 68%, transparent 68.3% 100%),
+        repeating-linear-gradient(90deg, transparent 0 151px, rgba(4, 5, 9, 0.28) 152px 157px, transparent 158px 282px);
+    }
+
+    .menu-cave-scene::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background: radial-gradient(ellipse at 50% 44%, transparent 24%, rgba(3, 4, 8, 0.28) 100%);
+    }
+
+    .main-menu-content {
+      position: relative;
+      z-index: 1;
+      width: 100%;
+      max-width: 600px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      transform: translateY(16px);
+      transition: transform 320ms ease;
+    }
+
+    .main-menu-overlay.is-visible .main-menu-content {
+      transform: translateY(0);
+    }
+
+    .menu-kicker {
+      margin: 0 0 18px;
+      color: #f3c477;
+      font: 700 clamp(14px, 2.6vw, 19px) "Courier New", monospace;
+      letter-spacing: 0.18em;
+      text-shadow: 0 3px 8px #000, 0 0 18px rgba(255, 177, 76, 0.5);
+    }
+
+    .main-menu-title {
+      margin: 0;
+      background: linear-gradient(180deg, #fff2a4 0%, #ffd453 28%, #f28a26 68%, #b94b19 100%);
+      background-clip: text;
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      -webkit-text-stroke: 1px rgba(255, 210, 111, 0.58);
+      font: 900 clamp(44px, 9vw, 70px)/1.05 "Courier New", monospace;
+      letter-spacing: 0.025em;
+      filter: drop-shadow(0 3px 0 #9a4c17) drop-shadow(0 7px 0 #4b2b11) drop-shadow(0 12px 20px rgba(0, 0, 0, 0.92)) drop-shadow(0 0 15px rgba(255, 190, 67, 0.48));
+    }
+
+    .main-menu-subtitle {
+      margin: 20px 0 0;
+      color: #f3e3c5;
+      font: 600 clamp(18px, 3.5vw, 25px) "Poppins", sans-serif;
+      text-shadow: 0 3px 10px #000, 0 0 16px rgba(255, 184, 83, 0.3);
+    }
+
+    .main-menu-buttons {
+      width: 100%;
+      display: grid;
+      gap: 18px;
+      margin-top: 58px;
+    }
+
+    .menu-button {
+      position: relative;
+      display: flex;
+      min-height: 108px;
+      align-items: center;
+      justify-content: center;
+      gap: 15px;
+      padding: 12px 20px;
+      border: 4px solid #e6b64f;
+      border-radius: 20px;
+      background:
+        repeating-linear-gradient(0deg, transparent 0 17px, rgba(255, 221, 154, 0.07) 18px 20px, transparent 21px 33px),
+        linear-gradient(180deg, #85532d, #57351f 48%, #392316);
+      box-shadow: inset 0 3px 0 rgba(255, 231, 177, 0.38), inset 0 -5px 0 rgba(23, 13, 8, 0.45), 0 8px 0 #20140d, 0 15px 28px rgba(0, 0, 0, 0.58);
+      color: #ffe4a6;
+      font: 800 clamp(20px, 4vw, 28px) "Courier New", monospace;
+      letter-spacing: 0.1em;
+      text-shadow: 0 2px 2px rgba(25, 12, 5, 0.7);
+      cursor: pointer;
+      touch-action: manipulation;
+      transition: transform 180ms cubic-bezier(0.2, 0.8, 0.2, 1), filter 180ms ease, box-shadow 180ms ease;
+    }
+
+    .menu-button::before {
+      content: "";
+      position: absolute;
+      inset: 7px;
+      border: 1px solid rgba(255, 218, 137, 0.36);
+      border-radius: 12px;
+      pointer-events: none;
+    }
+
+    .menu-button:hover {
+      transform: scale(1.035) translateY(-2px);
+      filter: brightness(1.16);
+      box-shadow: inset 0 3px 0 rgba(255, 231, 177, 0.45), inset 0 -5px 0 rgba(23, 13, 8, 0.4), 0 10px 0 #20140d, 0 20px 34px rgba(0, 0, 0, 0.64);
+    }
+
+    .menu-button:active {
+      transform: scale(0.975) translateY(4px);
+      filter: brightness(1.2);
+      box-shadow: inset 0 3px 0 rgba(255, 223, 157, 0.2), 0 4px 0 #17100b, 0 8px 16px rgba(0, 0, 0, 0.45);
+    }
+
+    .menu-button.primary {
+      border-color: #ffe07a;
+      background:
+        radial-gradient(ellipse at 50% 15%, rgba(255, 222, 119, 0.3), transparent 55%),
+        repeating-linear-gradient(0deg, transparent 0 17px, rgba(255, 221, 154, 0.08) 18px 20px, transparent 21px 33px),
+        linear-gradient(180deg, #a96729, #77401e 54%, #4a2816);
+      box-shadow: inset 0 0 22px rgba(255, 194, 77, 0.26), inset 0 3px 0 rgba(255, 240, 188, 0.5), 0 8px 0 #28170c, 0 0 28px rgba(255, 170, 47, 0.28), 0 15px 28px rgba(0, 0, 0, 0.58);
+    }
+
+    .menu-button.secondary {
+      min-height: 96px;
+      border-color: #c59a53;
+      background:
+        repeating-linear-gradient(0deg, transparent 0 17px, rgba(255, 221, 154, 0.045) 18px 20px, transparent 21px 33px),
+        linear-gradient(180deg, #64503a, #443426 58%, #30241b);
+      color: #f6e3bf;
+      font-size: clamp(18px, 3.4vw, 23px);
+    }
+
+    .menu-button-icon {
+      display: inline-block;
+      font-family: sans-serif;
+      font-size: 1.25em;
+      letter-spacing: 0;
+      filter: drop-shadow(0 2px 2px rgba(0, 0, 0, 0.6));
+      transition: transform 180ms ease;
+    }
+
+    .menu-button:hover .menu-button-icon {
+      transform: scale(1.12) rotate(-4deg);
+    }
+
+    .menu-button:focus-visible,
+    .menu-panel-close:focus-visible,
+    #restart-button:focus-visible,
+    #menu-return-button:focus-visible {
+      outline: 4px solid #fff1bd;
+      outline-offset: 4px;
+    }
+
+    .menu-torch {
+      position: absolute;
+      z-index: 1;
+      top: 25%;
+      width: 46px;
+      height: 126px;
+      filter: drop-shadow(0 5px 7px rgba(0, 0, 0, 0.7));
+    }
+
+    .menu-torch.left { left: 7.5%; }
+    .menu-torch.right { right: 7.5%; transform: scaleX(-1); }
+
+    .menu-torch::before {
+      content: "";
+      position: absolute;
+      left: -110px;
+      top: -74px;
+      width: 265px;
+      height: 300px;
+      background: radial-gradient(ellipse, rgba(255, 136, 45, 0.27), rgba(255, 161, 56, 0.09) 34%, transparent 70%);
+      animation: torch-glow 2.4s ease-in-out infinite alternate;
+    }
+
+    .torch-handle {
+      position: absolute;
+      left: 18px;
+      bottom: 0;
+      width: 13px;
+      height: 82px;
+      border: 2px solid #51301d;
+      border-radius: 4px 4px 8px 8px;
+      background: linear-gradient(90deg, #422516, #a35b2b 48%, #4a2817);
+      box-shadow: inset 2px 0 rgba(255, 196, 110, 0.3), 0 0 0 2px rgba(18, 12, 10, 0.45);
+    }
+
+    .torch-handle::after {
+      content: "";
+      position: absolute;
+      left: -8px;
+      top: 5px;
+      width: 25px;
+      height: 8px;
+      border: 2px solid #49301f;
+      border-radius: 3px;
+      background: linear-gradient(#d1a14c, #77502b);
+    }
+
+    .torch-flame {
+      position: absolute;
+      z-index: 1;
+      left: 13px;
+      top: 5px;
+      width: 23px;
+      height: 39px;
+      border-radius: 65% 35% 58% 42% / 68% 45% 55% 32%;
+      background: radial-gradient(ellipse at 50% 70%, #fff8b3 0 16%, #ffc93d 31%, #ff6c22 67%, rgba(235, 54, 25, 0.08) 100%);
+      box-shadow: 0 0 13px 5px rgba(255, 138, 36, 0.75), 0 0 34px 14px rgba(255, 114, 32, 0.34);
+      transform-origin: 50% 90%;
+      animation: torch-flutter 850ms ease-in-out infinite alternate;
+    }
+
+    .cave-crystal-cluster {
+      position: absolute;
+      z-index: 1;
+      bottom: 28%;
+      display: flex;
+      align-items: flex-end;
+      gap: 2px;
+      height: 126px;
+      filter: drop-shadow(0 0 10px var(--crystal-glow));
+      opacity: 0.9;
+    }
+
+    .cave-crystal-cluster.left { left: 1%; transform: rotate(-4deg); }
+    .cave-crystal-cluster.right { right: 1%; transform: scaleX(-1) rotate(-4deg); }
+    .cave-crystal-cluster.blue { --crystal-glow: rgba(26, 199, 255, 0.72); --crystal-top: #b7faff; --crystal-mid: #27c9ff; --crystal-bottom: #1265a6; }
+    .cave-crystal-cluster.purple { --crystal-glow: rgba(194, 95, 255, 0.75); --crystal-top: #f3d0ff; --crystal-mid: #b654ed; --crystal-bottom: #5b287f; }
+    .cave-crystal-cluster.green { --crystal-glow: rgba(67, 255, 156, 0.72); --crystal-top: #c9ffe1; --crystal-mid: #36e88b; --crystal-bottom: #167545; }
+
+    .cave-crystal-cluster i {
+      display: block;
+      width: 27px;
+      height: 82px;
+      clip-path: polygon(50% 0, 100% 29%, 76% 100%, 22% 100%, 0 33%);
+      background: linear-gradient(112deg, var(--crystal-top), var(--crystal-mid) 43%, var(--crystal-bottom));
+      box-shadow: inset 5px 0 rgba(255, 255, 255, 0.55);
+      animation: crystal-glimmer 2.8s ease-in-out infinite alternate;
+    }
+
+    .cave-crystal-cluster i:nth-child(2) { width: 36px; height: 119px; animation-delay: 500ms; }
+    .cave-crystal-cluster i:nth-child(3) { width: 22px; height: 66px; animation-delay: 1s; }
+
+    .cave-root {
+      position: absolute;
+      top: -4px;
+      width: 7px;
+      height: 144px;
+      border-radius: 0 0 80% 30%;
+      transform-origin: top center;
+      background: linear-gradient(90deg, #191a16, #59613b 45%, #24271d);
+      box-shadow: 2px 2px 0 rgba(9, 12, 11, 0.72);
+      opacity: 0.86;
+    }
+
+    .cave-root::after {
+      content: "";
+      position: absolute;
+      top: 46px;
+      left: 4px;
+      width: 4px;
+      height: 69px;
+      border-radius: 0 0 80% 40%;
+      background: linear-gradient(90deg, #2b3020, #657148, #24271d);
+      transform: rotate(-17deg);
+    }
+
+    .root-one { left: 18%; transform: rotate(7deg); height: 176px; }
+    .root-two { left: 30%; transform: rotate(-5deg); height: 120px; }
+    .root-three { right: 18%; transform: rotate(-8deg); height: 164px; }
+    .root-four { right: 30%; transform: rotate(5deg); height: 124px; }
+
+    .cave-moss {
+      position: absolute;
+      bottom: -16px;
+      width: 230px;
+      height: 150px;
+      background: radial-gradient(ellipse at 50% 100%, rgba(63, 111, 48, 0.7), rgba(35, 69, 42, 0.45) 45%, transparent 74%);
+      filter: blur(3px);
+    }
+
+    .cave-moss.left { left: -35px; }
+    .cave-moss.right { right: -35px; transform: scaleX(-1); }
+
+    .cave-mushroom {
+      position: absolute;
+      z-index: 1;
+      bottom: 6%;
+      width: 43px;
+      height: 55px;
+      filter: drop-shadow(0 0 9px var(--mushroom-glow));
+    }
+
+    .cave-mushroom .cap {
+      position: absolute;
+      left: 2px;
+      bottom: 26px;
+      width: 39px;
+      height: 24px;
+      border: 2px solid rgba(255, 235, 207, 0.63);
+      border-radius: 24px 24px 7px 7px;
+      background: radial-gradient(circle at 28% 38%, #fff7d3 0 2px, transparent 3px), radial-gradient(circle at 69% 54%, #fff7d3 0 2px, transparent 3px), linear-gradient(180deg, var(--mushroom-light), var(--mushroom-color));
+    }
+
+    .cave-mushroom .stem {
+      position: absolute;
+      left: 16px;
+      bottom: 3px;
+      width: 12px;
+      height: 28px;
+      border-radius: 4px 4px 8px 8px;
+      background: linear-gradient(90deg, #d9d2b7, #fff0cf, #bdb99e);
+    }
+
+    .mushroom-blue { --mushroom-glow: rgba(55, 217, 255, 0.68); --mushroom-light: #7af4ff; --mushroom-color: #1aa9d6; left: 13%; }
+    .mushroom-pink { --mushroom-glow: rgba(255, 91, 194, 0.68); --mushroom-light: #ffb2e4; --mushroom-color: #e549a5; left: 23%; bottom: 8%; transform: scale(0.72); }
+    .mushroom-green { --mushroom-glow: rgba(93, 255, 146, 0.68); --mushroom-light: #baff9a; --mushroom-color: #42bc61; right: 14%; }
+    .mushroom-purple { --mushroom-glow: rgba(185, 114, 255, 0.7); --mushroom-light: #e1b4ff; --mushroom-color: #9051cf; right: 25%; bottom: 8%; transform: scale(0.76); }
+
+    .menu-spark {
+      position: absolute;
+      z-index: 1;
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: #fff2a6;
+      box-shadow: 0 0 8px 3px rgba(255, 197, 72, 0.72);
+      animation: spark-twinkle 1.9s ease-in-out infinite alternate;
+    }
+
+    .spark-one { left: 22%; top: 29%; }
+    .spark-two { right: 22%; top: 34%; animation-delay: 600ms; }
+    .spark-three { left: 31%; top: 40%; width: 4px; height: 4px; animation-delay: 1.1s; }
+    .spark-four { right: 32%; top: 25%; width: 5px; height: 5px; animation-delay: 300ms; }
+
+    @keyframes torch-flutter {
+      from { transform: rotate(-5deg) scale(0.92, 1); filter: brightness(0.92); }
+      to { transform: rotate(6deg) scale(1.08, 1.06); filter: brightness(1.22); }
+    }
+
+    @keyframes torch-glow {
+      from { opacity: 0.72; transform: scale(0.92); }
+      to { opacity: 1; transform: scale(1.08); }
+    }
+
+    @keyframes crystal-glimmer {
+      from { filter: brightness(0.85); }
+      to { filter: brightness(1.25); }
+    }
+
+    @keyframes spark-twinkle {
+      from { opacity: 0.3; transform: scale(0.65); }
+      to { opacity: 1; transform: scale(1.3); }
+    }
+
+    .main-menu-overlay:not(.is-visible) .menu-cave-scene * {
+      animation-play-state: paused;
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      .main-menu-content,
+      .menu-button,
+      .menu-button-icon {
+        transition-duration: 0.01ms;
+      }
+      .menu-cave-scene * {
+        animation: none !important;
+      }
+    }
+
+    .menu-aux-overlay {
+      position: absolute;
+      inset: 0;
+      z-index: 2;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 42px;
+      background: rgba(5, 5, 5, 0.78);
+      backdrop-filter: blur(4px);
+    }
+
+    .menu-aux-overlay[hidden] {
+      display: none;
+    }
+
+    .menu-aux-panel {
+      width: 100%;
+      max-width: 560px;
+      padding: 42px 34px 34px;
+      border: 3px solid #c99443;
+      border-radius: 28px;
+      background: linear-gradient(145deg, #443326, #211912);
+      box-shadow: 0 24px 70px rgba(0, 0, 0, 0.8);
+      text-align: center;
+    }
+
+    .menu-aux-overlay {
+      padding: max(12px, 3vh) max(12px, 4vw);
+      overflow-y: auto;
+    }
+
+    .menu-shop-panel {
+      width: 100%;
+      max-width: 650px;
+      height: min(94vh, 1180px);
+      max-height: 100%;
+      min-height: 0;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      padding: 0;
+      border: 3px solid #c99443;
+      border-radius: 26px;
+      background: linear-gradient(155deg, #292c2d, #171a1c 58%, #211912);
+      box-shadow: 0 24px 70px rgba(0, 0, 0, 0.82), inset 0 0 0 1px rgba(255, 222, 157, 0.12);
+      text-align: left;
+    }
+
+    /* La zona de desplazamiento es solo la lista: cabecera y salida permanecen accesibles. */
+    .menu-shop-header {
+      position: relative;
+      z-index: 4;
+      flex: 0 0 auto;
+      padding: clamp(17px, 3.2vh, 28px) 88px 14px clamp(16px, 4vw, 28px);
+      border-bottom: 1px solid rgba(236, 190, 104, 0.28);
+      background: linear-gradient(135deg, rgba(63, 48, 34, 0.99), rgba(31, 33, 32, 0.99));
+      box-shadow: 0 8px 18px rgba(0, 0, 0, 0.2);
+      text-align: center;
+    }
+    .menu-shop-header h2 { margin: 0 0 9px; color: #ffd878; font: 800 clamp(22px, 5vw, 34px)/1.1 "Courier New", monospace; letter-spacing: 0.035em; text-shadow: 0 2px 9px rgba(255, 180, 61, 0.25); }
+    .shop-wallet { display: inline-flex; align-items: center; justify-content: center; gap: 7px; margin: 0; padding: 8px 15px; border: 1px solid rgba(245, 194, 94, 0.35); border-radius: 999px; background: rgba(12, 15, 16, 0.62); color: #eadcc6; font: 700 clamp(15px, 3.5vw, 21px) "Poppins", sans-serif; }
+    .shop-wallet strong { color: #ffd878; font-size: 1.15em; }
+    .shop-message { min-height: 1.25em; margin: 7px 0 0; color: #f2d49a; font: 600 13px/1.3 "Poppins", sans-serif; }
+    .shop-header-close {
+      position: absolute;
+      z-index: 6;
+      top: 12px;
+      right: 12px;
+      display: grid;
+      width: 64px;
+      height: 64px;
+      place-items: center;
+      border: 2px solid rgba(255, 216, 120, 0.72);
+      border-radius: 18px;
+      background: linear-gradient(145deg, #73502c, #392819);
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.38), inset 0 1px rgba(255, 255, 255, 0.16);
+      color: #fff0cf;
+      font: 800 28px/1 "Poppins", sans-serif;
+      cursor: pointer;
+      pointer-events: auto;
+      touch-action: manipulation;
+    }
+    .shop-header-close:active { transform: scale(0.94); }
+    .shop-header-close:focus-visible { outline: 4px solid #fff1bd; outline-offset: 3px; }
+    .shop-items {
+      position: relative;
+      flex: 1 1 auto;
+      min-height: 0;
+      overflow-y: auto;
+      overscroll-behavior: contain;
+      scroll-behavior: smooth;
+      scrollbar-width: thin;
+      scrollbar-color: #bd8a42 rgba(16, 18, 19, 0.75);
+      padding: 16px clamp(13px, 3vw, 22px) 12px;
+    }
+    .shop-items::-webkit-scrollbar { width: 9px; }
+    .shop-items::-webkit-scrollbar-track { margin: 8px 0; border-radius: 9px; background: rgba(10, 12, 13, 0.55); }
+    .shop-items::-webkit-scrollbar-thumb { border: 2px solid #202222; border-radius: 9px; background: linear-gradient(#e8bd69, #916333); }
+    .shop-category-title { display: flex; align-items: center; gap: 9px; margin: 7px 0 12px; padding: 0 2px 8px; border-bottom: 1px solid rgba(228, 174, 76, 0.27); color: #f4c66f; font: 800 clamp(15px, 3.5vw, 18px) "Courier New", monospace; text-align: left; }
+    .shop-category-title:first-child { margin-top: 0; }
+    .shop-item {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      align-items: center;
+      gap: 12px;
+      margin: 0 0 11px;
+      padding: clamp(12px, 2.5vw, 16px);
+      border: 1px solid rgba(213, 170, 105, 0.35);
+      border-radius: 17px;
+      background: linear-gradient(135deg, rgba(50, 43, 35, 0.92), rgba(24, 25, 25, 0.97));
+      box-shadow: 0 5px 13px rgba(0, 0, 0, 0.2), inset 0 1px rgba(255, 255, 255, 0.035);
+    }
+    .shop-item h3 { margin: 0 0 5px; color: #fff0cf; font: 700 clamp(14px, 3.2vw, 16px)/1.25 "Poppins", sans-serif; }
+    .shop-item p { margin: 0; color: #cdbda7; font: 400 clamp(11px, 2.8vw, 13px)/1.4 "Poppins", sans-serif; }
+    .shop-item .shop-item-meta { display: inline-block; margin-top: 8px !important; padding: 4px 9px; border: 1px solid rgba(232, 189, 105, 0.24); border-radius: 999px; background: rgba(12, 14, 14, 0.62); color: #f2cb78 !important; font-weight: 800 !important; }
+    .shop-buy-button {
+      min-width: 104px;
+      min-height: 50px;
+      padding: 9px 11px;
+      border: 2px solid #e4ae4c;
+      border-radius: 13px;
+      background: linear-gradient(180deg, #a77638, #60401f);
+      box-shadow: inset 0 1px rgba(255, 239, 190, 0.22), 0 3px 8px rgba(0, 0, 0, 0.28);
+      color: #fff0c6;
+      font: 800 12px "Courier New", monospace;
+      cursor: pointer;
+      touch-action: manipulation;
+      transition: transform 150ms ease, filter 150ms ease, background 150ms ease;
+    }
+    .shop-buy-button:disabled { border-color: #5e5b55; background: #393a38; box-shadow: none; color: #aaa69e; cursor: not-allowed; filter: grayscale(0.55); }
+    .shop-buy-button:not(:disabled):hover { filter: brightness(1.15); }
+    .shop-buy-button:not(:disabled):active { transform: scale(0.96); }
+    .shop-scroll-cue { flex: 0 0 auto; padding: 4px 12px 9px; color: #c4a66f; font: 700 11px "Courier New", monospace; letter-spacing: 0.12em; text-align: center; opacity: 0.82; }
+    .shop-return { position: relative; z-index: 4; flex: 0 0 auto; width: calc(100% - 36px); min-height: 58px; margin: 0 18px 18px; pointer-events: auto; }
+    @media (max-height: 720px) {
+      .menu-shop-panel { height: 96vh; }
+      .menu-shop-header { padding-top: 10px; padding-bottom: 8px; }
+      .shop-category-title { margin-top: 5px; margin-bottom: 8px; }
+      .shop-item { padding: 8px; margin-bottom: 7px; }
+      .shop-scroll-cue { padding-bottom: 5px; }
+      .shop-return { min-height: 48px; margin-bottom: 10px; }
+    }
+    @media (max-width: 420px) {
+      .shop-item { grid-template-columns: minmax(0, 1fr) auto; gap: 8px; }
+      .shop-buy-button { min-width: 88px; padding-inline: 7px; }
+    }
+
+    /* Tienda: scroll nativo, aislado y compuesto para desplazamiento fluido en móvil. */
+    #store-panel.menu-aux-overlay {
+      display: flex;
+      overflow: hidden;
+      overscroll-behavior: none;
+      padding: max(10px, 1.2vh) max(12px, 2.5vw);
+      pointer-events: auto;
+    }
+    /* El selector visible de la tienda tiene más especificidad que la regla
+       genérica [hidden]; este override evita que una tienda cerrada siga
+       ocupando la pantalla e interceptando toques/clics. */
+    #store-panel.menu-aux-overlay[hidden] {
+      display: none;
+      pointer-events: none;
+    }
+    #store-panel .menu-shop-panel {
+      position: relative;
+      z-index: 1;
+      height: min(97vh, 1240px);
+      max-height: 100%;
+      width: 100%;
+      pointer-events: auto;
+    }
+    #store-panel .shop-items {
+      min-height: 0;
+      padding: 20px clamp(14px, 3vw, 24px) 28px;
+      overflow-x: hidden;
+      overflow-y: auto;
+      -webkit-overflow-scrolling: touch;
+      overscroll-behavior-y: contain;
+      touch-action: pan-y;
+      scroll-behavior: smooth;
+      scrollbar-gutter: stable;
+      transform: translate3d(0, 0, 0);
+      will-change: transform, scroll-position;
+      contain: layout paint;
+    }
+    #store-panel .shop-item {
+      display: flex;
+      flex-direction: column;
+      align-items: stretch;
+      gap: 17px;
+      margin: 0 0 18px;
+      padding: clamp(16px, 3vw, 22px);
+      border: 1px solid rgba(230, 184, 103, 0.48);
+      border-radius: 20px;
+      background: linear-gradient(145deg, rgba(57, 46, 36, 0.98), rgba(24, 26, 27, 0.99));
+      box-shadow: 0 8px 20px rgba(0, 0, 0, 0.28), inset 0 1px rgba(255, 255, 255, 0.06);
+    }
+    #store-panel .shop-item-heading {
+      display: flex;
+      align-items: center;
+      gap: 15px;
+    }
+    #store-panel .shop-item-emoji {
+      display: grid;
+      flex: 0 0 58px;
+      width: 58px;
+      height: 58px;
+      place-items: center;
+      border: 1px solid rgba(242, 194, 103, 0.35);
+      border-radius: 17px;
+      background: rgba(15, 17, 18, 0.7);
+      font-size: 34px;
+      line-height: 1;
+      filter: drop-shadow(0 3px 8px rgba(255, 186, 73, 0.18));
+    }
+    #store-panel .shop-item-copy { min-width: 0; }
+    #store-panel .shop-item h3 {
+      margin: 0 0 6px;
+      color: #fff0cf;
+      font: 800 clamp(17px, 3.7vw, 21px)/1.2 "Poppins", sans-serif;
+    }
+    #store-panel .shop-item p {
+      margin: 0;
+      color: #d2c2ac;
+      font: 400 clamp(13px, 3vw, 15px)/1.45 "Poppins", sans-serif;
+    }
+    #store-panel .shop-item-footer {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding-top: 13px;
+      border-top: 1px solid rgba(228, 174, 76, 0.22);
+    }
+    #store-panel .shop-item-price-block {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    #store-panel .shop-item .shop-item-price {
+      color: #ffd878;
+      font: 900 clamp(20px, 4vw, 25px)/1 "Courier New", monospace;
+      text-shadow: 0 2px 8px rgba(255, 180, 61, 0.18);
+    }
+    #store-panel .shop-item .shop-item-meta {
+      display: block;
+      margin: 0 !important;
+      padding: 0;
+      border: 0;
+      border-radius: 0;
+      background: transparent;
+      color: #c7b69e !important;
+      font: 600 12px/1.3 "Poppins", sans-serif !important;
+    }
+    #store-panel .shop-buy-button {
+      flex: 0 0 auto;
+      min-width: 126px;
+      min-height: 56px;
+      padding: 10px 15px;
+      border-radius: 14px;
+      font-size: 14px;
+    }
+    #store-panel .shop-scroll-cue { padding: 6px 12px 10px; }
+    #store-panel .shop-return {
+      position: relative;
+      z-index: 8;
+      min-height: 62px;
+      pointer-events: auto;
+      touch-action: manipulation;
+    }
+    #store-panel .shop-header-close {
+      z-index: 9;
+      pointer-events: auto;
+      touch-action: manipulation;
+    }
+    @media (max-width: 420px) {
+      #store-panel .shop-item { gap: 14px; }
+      #store-panel .shop-item-emoji { flex-basis: 50px; width: 50px; height: 50px; font-size: 30px; }
+      #store-panel .shop-buy-button { min-width: 108px; }
+    }
+    @media (max-height: 720px) {
+      #store-panel .menu-shop-panel { height: 98vh; }
+      #store-panel .shop-item { padding: 12px; margin-bottom: 12px; }
+      #store-panel .shop-item-emoji { flex-basis: 46px; width: 46px; height: 46px; font-size: 27px; }
+      #store-panel .shop-item-footer { padding-top: 9px; }
+      #store-panel .shop-buy-button { min-height: 48px; }
+    }
+
+    #settings-panel .menu-aux-panel {
+      max-height: 100%;
+      overflow-y: auto;
+      text-align: left;
+    }
+    #settings-panel .menu-aux-panel h2 { text-align: center; }
+    .audio-setting {
+      display: grid;
+      gap: 12px;
+      margin: 0 0 22px;
+      padding: 18px;
+      border: 1px solid rgba(213, 170, 105, 0.32);
+      border-radius: 17px;
+      background: rgba(12, 14, 14, 0.42);
+    }
+    .audio-setting label {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      color: #fff0cf;
+      font: 700 clamp(16px, 3.4vw, 20px) "Poppins", sans-serif;
+    }
+    .audio-setting output { color: #ffd878; font: 800 19px "Courier New", monospace; }
+    .audio-setting input[type="range"] {
+      width: 100%;
+      min-height: 56px;
+      margin: 0;
+      accent-color: #f5b942;
+      cursor: pointer;
+      touch-action: pan-x;
+    }
+    .audio-setting button {
+      min-width: 190px;
+      min-height: 96px;
+      justify-self: center;
+      padding: 12px 18px;
+      border: 2px solid #d9aa50;
+      border-radius: 16px;
+      background: linear-gradient(180deg, #684329, #392519);
+      color: #ffe4a6;
+      font: 800 16px "Courier New", monospace;
+      cursor: pointer;
+      touch-action: manipulation;
+    }
+    .audio-setting button:focus-visible { outline: 4px solid #fff1bd; outline-offset: 3px; }
+
+    .menu-aux-panel h2 {
+      margin: 0 0 18px;
+      color: #ffd878;
+      font: 800 clamp(25px, 5vw, 36px) "Courier New", monospace;
+    }
+
+    .menu-aux-panel p {
+      margin: 0 0 28px;
+      color: #eadcc6;
+      font: 500 clamp(17px, 3.3vw, 22px)/1.55 "Poppins", sans-serif;
+    }
+
+    .rules-list {
+      display: grid;
+      gap: 16px;
+      margin: 0 0 30px;
+      padding: 0;
+      color: #eadcc6;
+      list-style: none;
+      text-align: left;
+      font: 500 clamp(15px, 3vw, 19px)/1.45 "Poppins", sans-serif;
+    }
+
+    .rules-list li {
+      padding: 12px 15px;
+      border: 1px solid rgba(213, 170, 105, 0.3);
+      border-radius: 14px;
+      background: rgba(12, 14, 14, 0.42);
+    }
+
+    .rules-list strong {
+      color: #ffd878;
+      font-weight: 800;
+    }
+
+    .menu-panel-close {
+      min-width: 220px;
+      min-height: 82px;
+      padding: 12px 24px;
+      border: 2px solid #e4ae4c;
+      border-radius: 18px;
+      background: linear-gradient(180deg, #684329, #392519);
+      color: #ffe4a6;
+      font: 800 20px "Courier New", monospace;
+      cursor: pointer;
+      touch-action: manipulation;
+    }
+
+    #game-over-actions {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 14px;
+    }
+
+    #restart-button,
+    #menu-return-button {
+      width: 100%;
+      min-height: 82px;
+      padding: 10px;
+      border: 0;
+      border-radius: 22px;
+      background: linear-gradient(135deg, #f5b942, #d97706);
+      color: #29180a;
+      font: 700 clamp(15px, 2.8vw, 20px) "Poppins", sans-serif;
+      cursor: pointer;
+      touch-action: manipulation;
+    }
+
+    #menu-return-button {
+      border: 2px solid #d5aa69;
+      background: linear-gradient(135deg, #55483b, #30271f);
+      color: #f5e5c9;
+    }
+
+    /* Controles y modal de pausa, con el mismo acabado rústico de madera y oro. */
+    #pause-button {
+      position: absolute;
+      z-index: 20;
+      top: 28px;
+      right: 28px;
+      display: grid;
+      width: 96px;
+      height: 96px;
+      place-items: center;
+      border: 4px solid #d9aa50;
+      border-radius: 22px;
+      background: repeating-linear-gradient(0deg, transparent 0 15px, rgba(255, 221, 154, 0.07) 16px 18px, transparent 19px 29px), linear-gradient(180deg, #80512d, #392518);
+      box-shadow: inset 0 2px 0 rgba(255, 231, 177, 0.34), 0 6px 0 #20140d, 0 10px 22px rgba(0, 0, 0, 0.52);
+      color: #ffe4a6;
+      font: 800 38px/1 "Poppins", sans-serif;
+      cursor: pointer;
+      touch-action: manipulation;
+    }
+    #pause-button[hidden] { display: none; }
+    #pause-button:active { transform: translateY(3px) scale(0.97); }
+    #pause-button:focus-visible,
+    .pause-action:focus-visible { outline: 4px solid #fff1bd; outline-offset: 4px; }
+
+    .pause-overlay {
+      position: absolute;
+      inset: 0;
+      z-index: 9997;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 28px;
+      background: rgba(5, 7, 9, 0.78);
+      backdrop-filter: blur(3px);
+      touch-action: manipulation;
+    }
+    .pause-overlay[hidden] { display: none; }
+    .pause-panel {
+      width: 100%;
+      max-width: 560px;
+      padding: clamp(28px, 6vw, 48px);
+      border: 4px solid #d9aa50;
+      border-radius: 30px;
+      background: repeating-linear-gradient(0deg, transparent 0 25px, rgba(255, 221, 154, 0.035) 26px 29px, transparent 30px 52px), linear-gradient(145deg, #604126, #332317 52%, #211710);
+      box-shadow: inset 0 0 0 2px rgba(255, 221, 154, 0.12), 0 24px 70px rgba(0, 0, 0, 0.82);
+      color: #f6e7ca;
+      text-align: center;
+    }
+    .pause-panel h2 {
+      margin: 0 0 34px;
+      color: #ffd878;
+      font: 900 clamp(28px, 6vw, 40px)/1.15 "Courier New", monospace;
+      letter-spacing: 0.035em;
+      text-shadow: 0 3px 0 #462811, 0 0 16px rgba(255, 190, 67, 0.3);
+    }
+    .pause-actions { display: grid; gap: 16px; }
+    .pause-action {
+      min-height: 96px;
+      padding: 14px 18px;
+      border: 3px solid #d9aa50;
+      border-radius: 18px;
+      background: linear-gradient(180deg, #81512d, #472c1b);
+      box-shadow: inset 0 2px 0 rgba(255, 231, 177, 0.24), 0 5px 0 #20140d;
+      color: #ffe4a6;
+      font: 800 clamp(18px, 4vw, 24px) "Courier New", monospace;
+      letter-spacing: 0.06em;
+      cursor: pointer;
+      touch-action: manipulation;
+    }
+    .pause-action.primary {
+      border-color: #ffe07a;
+      background: linear-gradient(180deg, #b77732, #70401d);
+      color: #fff0c0;
+    }
+    .pause-action.secondary {
+      border-color: #a9804a;
+      background: linear-gradient(180deg, #5b4937, #34271d);
+      color: #e8d8bd;
+    }
+    .pause-action:active { transform: translateY(3px); }
+    @media (max-width: 420px) {
+      #pause-button { top: 20px; right: 18px; width: 84px; height: 84px; }
+      .pause-overlay { padding: 18px; }
+      .pause-panel { padding: 28px 20px; }
+    }
+
+    .visually-hidden {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      padding: 0;
+      margin: -1px;
+      overflow: hidden;
+      clip: rect(0, 0, 0, 0);
+      white-space: nowrap;
+      border: 0;
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      #game-canvas {
+        scroll-behavior: auto;
+      }
+    }
+  </style>
+<style data-astrocade-injected="styles">
+/* Astrocade injected styles */
+
+/* Disable tap highlight and text selection on Android */
+* {
+    -webkit-tap-highlight-color: transparent !important;
+}
+
+body {
+    -webkit-touch-callout: none !important;
+    -webkit-user-select: none !important;
+    -khtml-user-select: none !important;
+    -moz-user-select: none !important;
+    -ms-user-select: none !important;
+    user-select: none !important;
+    /* Prevent double-tap zoom on the game area */
+    touch-action: manipulation !important;
+}
+
+/* Allow normal touch behavior for text inputs and editable content */
+input,
+textarea,
+[contenteditable="true"],
+[contenteditable=""] {
+    touch-action: auto !important;
+    -webkit-user-select: text !important;
+    -khtml-user-select: text !important;
+    -moz-user-select: text !important;
+    -ms-user-select: text !important;
+    user-select: text !important;
+}
+
+/* Disable context menu on images and canvas */
+img, canvas {
+    -webkit-touch-callout: none !important;
+    -webkit-user-select: none !important;
+    -webkit-user-drag: none !important;
+    -khtml-user-drag: none !important;
+    -moz-user-drag: none !important;
+    -o-user-drag: none !important;
+    user-drag: none !important;
+    /* Prevent double-tap zoom on images and canvas elements */
+    touch-action: manipulation !important;
+}
+</style></head>
+<body>
+  <main id="game-world">
+    <canvas id="game-canvas" width="720" height="1280" tabindex="0" role="application" aria-label="Tablero 3 por 3. Toca una casilla vecina o usa las flechas o WASD."></canvas>
+    <button id="pause-button" type="button" aria-label="Pausar partida" title="Pausar partida" hidden="">⏸</button>
+    <section id="main-menu-overlay" class="main-menu-overlay is-visible" aria-hidden="false" aria-labelledby="main-menu-title">
+      <div class="menu-cave-scene" aria-hidden="true">
+        <div class="cave-root root-one"></div><div class="cave-root root-two"></div>
+        <div class="cave-root root-three"></div><div class="cave-root root-four"></div>
+        <div class="menu-torch left"><span class="torch-handle"></span><span class="torch-flame"></span></div>
+        <div class="menu-torch right"><span class="torch-handle"></span><span class="torch-flame"></span></div>
+        <div class="cave-crystal-cluster left blue"><i></i><i></i><i></i></div>
+        <div class="cave-crystal-cluster right purple"><i></i><i></i><i></i></div>
+        <div class="cave-crystal-cluster left green" style="left: 8%; bottom: 12%; transform: scale(0.64) rotate(-7deg);"><i></i><i></i><i></i></div>
+        <div class="cave-crystal-cluster right blue" style="right: 8%; bottom: 12%; transform: scale(0.64) rotate(-7deg) scaleX(-1);"><i></i><i></i><i></i></div>
+        <div class="cave-moss left"></div><div class="cave-moss right"></div>
+        <div class="cave-mushroom mushroom-blue"><i class="cap"></i><i class="stem"></i></div>
+        <div class="cave-mushroom mushroom-pink"><i class="cap"></i><i class="stem"></i></div>
+        <div class="cave-mushroom mushroom-green"><i class="cap"></i><i class="stem"></i></div>
+        <div class="cave-mushroom mushroom-purple"><i class="cap"></i><i class="stem"></i></div>
+        <i class="menu-spark spark-one"></i><i class="menu-spark spark-two"></i>
+        <i class="menu-spark spark-three"></i><i class="menu-spark spark-four"></i>
+      </div>
+      <div class="main-menu-content">
+        <p class="menu-kicker">UNA AVENTURA DE SUPERVIVENCIA</p>
+        <h1 id="main-menu-title" class="main-menu-title">CARD MINE<br>3x3</h1>
+        <p class="main-menu-subtitle">Sobrevive a las profundidades</p>
+        <div class="main-menu-buttons">
+          <button id="play-button" class="menu-button primary" type="button"><span class="menu-button-icon" aria-hidden="true">⛏️</span><span>JUGAR</span></button>
+          <button id="store-button" class="menu-button secondary" type="button"><span class="menu-button-icon" aria-hidden="true">💎</span><span>TIENDA</span></button>
+          <button id="rules-button" class="menu-button secondary" type="button"><span class="menu-button-icon" aria-hidden="true">📜</span><span>REGLAS</span></button>
+          <button id="settings-button" class="menu-button secondary" type="button"><span class="menu-button-icon" aria-hidden="true">⚙️</span><span>AJUSTES</span></button>
+        </div>
+      </div>
+      <section id="store-panel" class="menu-aux-overlay" aria-hidden="true" aria-labelledby="store-panel-title" hidden="">
+        <div class="menu-shop-panel" role="dialog" aria-modal="true">
+          <header class="menu-shop-header">
+            <button id="store-close-button" class="shop-header-close" type="button" aria-label="Cerrar tienda y volver al menú">✖</button>
+            <h2 id="store-panel-title">MERCADO DE LA MINA</h2>
+            <p class="shop-wallet">Billetera global: <strong id="shop-wallet-balance">0</strong> 🪙 ORO</p>
+            <p id="shop-message" class="shop-message" aria-live="polite"></p>
+          </header>
+          <div id="shop-items" class="shop-items" aria-label="Artículos disponibles"></div>
+          <div class="shop-scroll-cue" aria-hidden="true">DESLIZA PARA VER MÁS · ↓</div>
+          <button id="store-return-button" class="menu-panel-close shop-return" type="button">VOLVER AL MENÚ</button>
+        </div>
+      </section>
+      <section id="rules-panel" class="menu-aux-overlay" aria-hidden="true" aria-labelledby="rules-panel-title" hidden="">
+        <div class="menu-aux-panel" role="dialog" aria-modal="true">
+          <h2 id="rules-panel-title">REGLAS DE LA MINA</h2>
+          <ul class="rules-list">
+            <li>🧭 <strong>MOVIMIENTO:</strong> Toca cualquier carta adyacente (arriba, abajo, izquierda, derecha) para moverte.</li>
+            <li>⚔️ <strong>COMBATE:</strong> Atacar monstruos reduce tu Vida/Escudo según su nivel.</li>
+            <li>🛡️ <strong>DEFENSA:</strong> El Escudo absorbe el daño antes que tu Vida.</li>
+            <li>🧪 <strong>ITEMS &amp; BOTÍN:</strong> Recoge Pociones para curarte y Oro para gastar en la Tienda.</li>
+            <li>🔄 <strong>REPOSICIÓN:</strong> Cada casilla que despejas se reemplaza inmediatamente.</li>
+          </ul>
+          <button class="menu-panel-close" type="button" data-close-menu-panel="">VOLVER</button>
+        </div>
+      </section>
+      <section id="settings-panel" class="menu-aux-overlay" aria-hidden="true" aria-labelledby="settings-panel-title" hidden="">
+        <div class="menu-aux-panel" role="dialog" aria-modal="true">
+          <h2 id="settings-panel-title">AJUSTES DE AUDIO</h2>
+          <div class="audio-setting">
+            <label for="music-volume-range"><span>🎵 Música de fondo</span><output id="music-volume-value" for="music-volume-range">100%</output></label>
+            <input id="music-volume-range" type="range" min="0" max="100" step="1" value="100" aria-label="Volumen de música de fondo">
+            <button id="music-mute-button" type="button">SILENCIAR MÚSICA</button>
+          </div>
+          <div class="audio-setting">
+            <label for="sfx-volume-range"><span>🔊 Efectos de sonido (SFX)</span><output id="sfx-volume-value" for="sfx-volume-range">65%</output></label>
+            <input id="sfx-volume-range" type="range" min="0" max="100" step="1" value="65" aria-label="Volumen de efectos de sonido">
+            <button id="sfx-mute-button" type="button">SILENCIAR SFX</button>
+          </div>
+          <button class="menu-panel-close" type="button" data-close-menu-panel="">VOLVER</button>
+        </div>
+      </section>
+    </section>
+    <section id="pause-overlay" class="pause-overlay" aria-hidden="true" aria-labelledby="pause-title" hidden="">
+      <div class="pause-panel" role="dialog" aria-modal="true">
+        <h2 id="pause-title">JUEGO EN PAUSA</h2>
+        <div class="pause-actions">
+          <button id="pause-continue-button" class="pause-action primary" type="button">CONTINUAR</button>
+          <button id="pause-restart-button" class="pause-action" type="button">REINICIAR</button>
+          <button id="pause-menu-button" class="pause-action secondary" type="button">MENÚ PRINCIPAL</button>
+        </div>
+      </div>
+    </section>
+    <section id="game-over-overlay" class="game-over-overlay" aria-hidden="true" aria-labelledby="game-over-title" aria-describedby="game-over-subtitle">
+      <div class="game-over-panel" role="dialog" aria-modal="true">
+        <h2 id="game-over-title">FIN DE LA PARTIDA</h2>
+        <p id="game-over-subtitle">La mina te ha vencido.</p>
+        <div class="game-over-stats">
+          <div class="game-over-stat"><span>PASOS / PUNTUACIÓN</span><strong id="game-over-steps">0</strong></div>
+          <div class="game-over-stat"><span>ORO RECOGIDO</span><strong id="game-over-gold">0</strong></div>
+        </div>
+        <div id="game-over-actions">
+          <button id="restart-button" type="button">REINICIAR</button>
+          <button id="menu-return-button" type="button">MENÚ PRINCIPAL</button>
+        </div>
+      </div>
+    </section>
+    <div id="live-region" class="visually-hidden" aria-live="polite" aria-atomic="true"></div>
+  </main>
+
+  <script>/* Shim independiente de Astrocade */
+window.lib={getAsset:function(id){return ASSETS[id];}};
+const ASSETS={"explorer_token":{"url":"https://d2oir5eh8rty2e.cloudfront.net/assets/images/explorer_token_bfb2a90f-8f58-4807-b0a4-51fe871ecc70.webp?quality=30&format=webp&scale=25","type":"image","subtype":"character","duration_secs":null,"loop":null},"baby_slime":{"url":"https://d2oir5eh8rty2e.cloudfront.net/assets/images/baby_slime_5cef1542-cf63-4b82-aec7-6c730622fee9.webp?quality=30&format=webp&scale=25","type":"image","subtype":"character","duration_secs":null,"loop":null},"guardian_skeleton":{"url":"https://d2oir5eh8rty2e.cloudfront.net/assets/images/guardian_skeleton_2ab69214-2939-4ac9-baa0-63161bd3e3ce.webp?quality=30&format=webp&scale=25","type":"image","subtype":"character","duration_secs":null,"loop":null},"cave_bat":{"url":"https://d2oir5eh8rty2e.cloudfront.net/assets/images/cave_bat_d7a7609e-9048-41f5-83b7-20c03162192d.webp?quality=30&format=webp&scale=10","type":"image","subtype":"character","duration_secs":null,"loop":null},"wooden_shield":{"url":"https://d2oir5eh8rty2e.cloudfront.net/assets/images/wooden_shield_8e7ca573-2504-4c60-8cab-ccb3f57415f1.webp?quality=30&format=webp&scale=10","type":"image","subtype":"object","duration_secs":null,"loop":null},"iron_shield":{"url":"https://d2oir5eh8rty2e.cloudfront.net/assets/images/iron_shield_43379fda-813c-4dc0-9963-8b768dec0ee9.webp?quality=30&format=webp&scale=10","type":"image","subtype":"object","duration_secs":null,"loop":null},"health_potion":{"url":"https://d2oir5eh8rty2e.cloudfront.net/assets/images/health_potion_cd17c899-ed26-48fb-9012-e1b4ae66b453.webp?quality=30&format=webp&scale=10","type":"image","subtype":"object","duration_secs":null,"loop":null},"greater_health_potion":{"url":"https://d2oir5eh8rty2e.cloudfront.net/assets/images/greater_health_potion_cdd5b444-7f7e-4b74-97f5-44da129c8a8c.webp?quality=30&format=webp&scale=10","type":"image","subtype":"object","duration_secs":null,"loop":null},"bronze_coin":{"url":"https://d2oir5eh8rty2e.cloudfront.net/assets/images/bronze_coin_6598e40f-2740-45e9-8562-34afd445595f.webp?quality=30&format=webp&scale=10","type":"image","subtype":"ui","duration_secs":null,"loop":null},"coin_pouch":{"url":"https://d2oir5eh8rty2e.cloudfront.net/assets/images/coin_pouch_464c18a4-11f8-4dcb-9b02-7353347616d2.webp?quality=30&format=webp&scale=10","type":"image","subtype":"object","duration_secs":null,"loop":null},"treasure_chest":{"url":"https://d2oir5eh8rty2e.cloudfront.net/assets/images/treasure_chest_f61dca00-046e-465f-9412-55d8db920155.webp?quality=30&format=webp&scale=10","type":"image","subtype":"ui","duration_secs":null,"loop":null},"spike_trap":{"url":"https://d2oir5eh8rty2e.cloudfront.net/assets/images/spike_trap_4cac5281-3278-4310-b721-81cb2b199023.webp?quality=30&format=webp&scale=10","type":"image","subtype":"object","duration_secs":null,"loop":null},"combat_impact_sfx":{"url":"https://d2oir5eh8rty2e.cloudfront.net/assets/sounds/effect/combat_impact_sfx_20a83a6e-6f6b-4d28-a68b-52fa6df4cb0b.ogg","type":"audio","subtype":"effect","duration_secs":1.38,"loop":false},"loot_chime_sfx":{"url":"https://d2oir5eh8rty2e.cloudfront.net/assets/sounds/effect/loot_chime_sfx_bb40748b-315a-4735-be6a-5e31516e243f.ogg","type":"audio","subtype":"effect","duration_secs":0.97,"loop":false},"game_over_sting":{"url":"https://d2oir5eh8rty2e.cloudfront.net/assets/sounds/music/game_over_sting_f89b7bef-1ec7-4344-9a00-03d1863b8c82.ogg","type":"audio","subtype":"music","duration_secs":3,"loop":false},"safe_stone_slab":{"url":"https://d2oir5eh8rty2e.cloudfront.net/assets/images/safe_stone_slab_7ce2c6b8-e88a-4a34-a946-9cdee8dee8ff.webp?quality=30&format=webp&scale=10","type":"image","subtype":"object","duration_secs":null,"loop":null},"slime_king":{"url":"https://d2oir5eh8rty2e.cloudfront.net/assets/images/slime_king_56aaa645-94bc-4b75-a021-855b1761d770.webp?quality=30&format=webp&scale=25","type":"image","subtype":"character","duration_secs":null,"loop":null},"mini_slime":{"url":"https://d2oir5eh8rty2e.cloudfront.net/assets/images/mini_slime_ebc05957-71b5-4a5c-8bfe-93023bb3e1d7.webp?quality=30&format=webp&scale=10","type":"image","subtype":"character","duration_secs":null,"loop":null},"potion_drink_sfx":{"url":"https://d2oir5eh8rty2e.cloudfront.net/assets/sounds/effect/potion_drink_sfx_570ce99c-081a-4b06-bd29-430c18d83b40.ogg","type":"audio","subtype":"effect","duration_secs":1.57,"loop":false},"shield_equip_sfx":{"url":"https://d2oir5eh8rty2e.cloudfront.net/assets/sounds/effect/shield_equip_sfx_2e89c5ba-906c-4aa6-8900-7f772c47a91e.ogg","type":"audio","subtype":"effect","duration_secs":0.64,"loop":false},"menu_dungeon_bgm":{"url":"https://d2oir5eh8rty2e.cloudfront.net/assets/sounds/music/menu_dungeon_bgm_a89235e0-f36b-4c84-a250-e0d9010857fc.ogg","type":"audio","subtype":"music","duration_secs":30,"loop":true},"mine_ambient_bgm":{"url":"https://d2oir5eh8rty2e.cloudfront.net/assets/sounds/music/mine_ambient_bgm_d8b39dd4-816f-4d22-811d-93b2de59dc62.ogg","type":"audio","subtype":"music","duration_secs":30,"loop":true},"mine_battle_bgm":{"url":"https://d2oir5eh8rty2e.cloudfront.net/assets/sounds/music/mine_battle_bgm_5527bc11-8e40-4801-9250-40a418c4a218.ogg","type":"audio","subtype":"music","duration_secs":30,"loop":true}};
+window.gameConfig={"visuals":{"figureScale":1.0,"cellArtOffsets":[{"x":0,"y":0},{"x":0,"y":0},{"x":0,"y":0},{"x":0,"y":0},{"x":0,"y":0},{"x":0,"y":0},{"x":0,"y":0},{"x":0,"y":0},{"x":0,"y":0}],"heroOffset":{"x":0,"y":0}},"threat":{"progressPerLevel":10,"maxLevel":10,"hpPerLevel":1,"attackEveryLevels":2,"attackPerStep":1},"spawnWeights":{"enemyInitial":32,"enemyPerLevel":1,"enemyMax":42,"trapInitial":6,"trapPerLevel":1,"trapMax":11,"skeletonBaseShare":0.2,"skeletonPerLevel":0.025,"skeletonMaxShare":0.45},"audio":{"volume":0.65},"effects":{"strength":1},"combat":{"initialHealth":10,"maxHealth":10,"maxShield":10},"cardValues":{"wooden_shield":3,"iron_shield":5,"health_potion":3,"greater_health_potion":5,"bronze_coin":1,"coin_pouch":3,"treasure_chest":5,"spike_trap":3},"enemies":{"baby_slime":{"hp":1},"cave_bat":{"hp":2},"guardian_skeleton":{"hp":3}}};
+</script>
+<script>
+    /*
+      Trama 3×3 — arte ilustrado, movimiento y tablero renovable.
+
+      Cada carta y el explorador usan sprites estáticos independientes de
+      los marcos y textos de interfaz. El héroe comienza en el centro y en
+      juego solo se avanza a una casilla ortogonal; la casilla abandonada se
+      repone al instante con una carta ilustrada aleatoria.
+    */
+
+    const LOGICAL_WIDTH = 720;
+    const LOGICAL_HEIGHT = 1280;
+    const BOARD_SIZE = 3;
+    const SKELETON_UNLOCK_THREAT = 5;
+    const MAX_THREAT_LEVEL = 10;
+    // Cartas 3:4 sin deformación; el marco del tablero mide 608 px y coincide
+    // con el panel superior de estadísticas (x=56, ancho=608).
+    const CELL_SIZE = 128;
+    const CELL_ART_HEIGHT = CELL_SIZE * 4 / 3;
+    const CELL_WIDTH = 180;
+    const CELL_HEIGHT = 240;
+    const CELL_GAP = 14;
+    const CELL_STEP_X = CELL_WIDTH + CELL_GAP;
+    const CELL_STEP_Y = CELL_HEIGHT + CELL_GAP;
+    const GRID_WIDTH = CELL_WIDTH * BOARD_SIZE + CELL_GAP * (BOARD_SIZE - 1);
+    const GRID_HEIGHT = CELL_HEIGHT * BOARD_SIZE + CELL_GAP * (BOARD_SIZE - 1);
+    const GRID_X = (LOGICAL_WIDTH - GRID_WIDTH) / 2;
+    const GRID_Y = 350;
+    const BOARD_FRAME_X = GRID_X - 20;
+    const BOARD_FRAME_Y = GRID_Y - 18;
+    const BOARD_FRAME_WIDTH = GRID_WIDTH + 40;
+    const BOARD_FRAME_HEIGHT = GRID_HEIGHT + 42;
+    const CENTER_INDEX = 4;
+    const MENU_MUSIC_SCENE_GAIN = 0.9;
+    const MINE_MUSIC_SCENE_GAIN = MENU_MUSIC_SCENE_GAIN * 0.8;
+
+    const CARD_TYPES = [
+      { id: "baby_slime", label: "BABY SLIME", category: "BESTIA", paletteIndex: 6 },
+      { id: "guardian_skeleton", label: "GUARDIÁN", category: "BESTIA", paletteIndex: 2 },
+      { id: "cave_bat", label: "MURCIÉLAGO", category: "BESTIA", paletteIndex: 7 },
+      { id: "slime_king", spriteId: "slime_king", label: "REY SLIME", category: "JEFE", paletteIndex: 6 },
+      { id: "mini_slime", spriteId: "mini_slime", label: "MINI SLIME", category: "BESTIA", paletteIndex: 6 },
+      { id: "wooden_shield", label: "ESCUDO DE MADERA", category: "DEFENSA", paletteIndex: 0 },
+      { id: "iron_shield", label: "ESCUDO DE HIERRO", category: "DEFENSA", paletteIndex: 4 },
+      { id: "health_potion", spriteId: "greater_health_potion", label: "POCIÓN DE SALUD", category: "POCIÓN", paletteIndex: 2 },
+      { id: "greater_health_potion", spriteId: "health_potion", label: "POCIÓN MAYOR", category: "POCIÓN", paletteIndex: 3 },
+      { id: "bronze_coin", label: "MONEDA DE BRONCE", category: "BOTÍN", paletteIndex: 3 },
+      { id: "coin_pouch", label: "BOLSA DE MONEDAS", category: "BOTÍN", paletteIndex: 5 },
+      { id: "treasure_chest", label: "COFRE DEL TESORO", category: "BOTÍN", paletteIndex: 3 },
+      { id: "spike_trap", label: "TRAMPA DE PINCHOS", category: "TRAMPA", paletteIndex: 1 }
+    ];
+
+    const PALETTES = [
+      { base: "#17333d", deep: "#10232e", rim: "#2b6871", accent: "#78e2d0", light: "#e1fff7" },
+      { base: "#29243e", deep: "#1c182e", rim: "#594777", accent: "#c0a4ff", light: "#f0e8ff" },
+      { base: "#3b2933", deep: "#281d26", rim: "#704450", accent: "#ff9eaf", light: "#ffe9ed" },
+      { base: "#3a3223", deep: "#282215", rim: "#70603b", accent: "#ffd878", light: "#fff5d7" },
+      { base: "#1d2e48", deep: "#142139", rim: "#3c5e88", accent: "#81bcff", light: "#e2f1ff" },
+      { base: "#18343a", deep: "#10262d", rim: "#32707a", accent: "#78e1e8", light: "#e0fcff" },
+      { base: "#293624", deep: "#1a2519", rim: "#536d3e", accent: "#bce989", light: "#efffdc" },
+      { base: "#382a42", deep: "#251b2e", rim: "#735184", accent: "#eda9ff", light: "#fbe8ff" }
+    ];
+
+    let activeCleanup = null;
+    // Session-only fallback for hosts without persistence (never stored in browser storage).
+    let sessionPlayerProfileFallback = null;
+    let sessionProfileHasUnsavedChanges = false;
+
+    function clamp(value, min, max) {
+      return Math.max(min, Math.min(max, value));
+    }
+
+    function roundedRectPath(ctx, x, y, width, height, radius) {
+      const r = Math.min(radius, width / 2, height / 2);
+      ctx.beginPath();
+      ctx.moveTo(x + r, y);
+      ctx.lineTo(x + width - r, y);
+      ctx.quadraticCurveTo(x + width, y, x + width, y + r);
+      ctx.lineTo(x + width, y + height - r);
+      ctx.quadraticCurveTo(x + width, y + height, x + width - r, y + height);
+      ctx.lineTo(x + r, y + height);
+      ctx.quadraticCurveTo(x, y + height, x, y + height - r);
+      ctx.lineTo(x, y + r);
+      ctx.quadraticCurveTo(x, y, x + r, y);
+      ctx.closePath();
+    }
+
+    function drawText(ctx, text, x, y, font, color, align) {
+      ctx.font = font;
+      ctx.fillStyle = color;
+      ctx.textAlign = align || "left";
+      ctx.textBaseline = "alphabetic";
+      ctx.fillText(text, x, y);
+    }
+
+    function getHostLibrary() {
+      try {
+        if (typeof lib !== "undefined" && lib) return lib;
+      } catch (error) {
+        // The game can also run without the Astrocade host.
+      }
+      return window.lib || null;
+    }
+
+    function ensureGameConfig() {
+      if (!window.gameConfig || typeof window.gameConfig !== "object") {
+        window.gameConfig = {};
+      }
+
+      const config = window.gameConfig;
+
+      if (!config.visuals || typeof config.visuals !== "object") {
+        config.visuals = {};
+      }
+
+      const visuals = config.visuals;
+
+      if (typeof visuals.figureScale !== "number" || !Number.isFinite(visuals.figureScale)) {
+        visuals.figureScale = 1;
+      }
+
+      if (!config.combat || typeof config.combat !== "object") config.combat = {};
+      const combatDefaults = { initialHealth: 10, maxHealth: 10, maxShield: 10 };
+      Object.entries(combatDefaults).forEach(([key, value]) => {
+        if (typeof config.combat[key] !== "number" || !Number.isFinite(config.combat[key])) {
+          config.combat[key] = value;
+        }
+      });
+
+      if (!config.enemies || typeof config.enemies !== "object") config.enemies = {};
+      const enemyDefaults = {
+        baby_slime: { hp: 1 },
+        guardian_skeleton: { hp: 3 },
+        cave_bat: { hp: 2 },
+        slime_king: { hp: 10 },
+        mini_slime: { hp: 3 }
+      };
+      Object.entries(enemyDefaults).forEach(([id, defaults]) => {
+        if (!config.enemies[id] || typeof config.enemies[id] !== "object") config.enemies[id] = {};
+        Object.entries(defaults).forEach(([key, value]) => {
+          if (typeof config.enemies[id][key] !== "number" || !Number.isFinite(config.enemies[id][key])) {
+            config.enemies[id][key] = value;
+          }
+        });
+      });
+
+      if (!config.cardValues || typeof config.cardValues !== "object") config.cardValues = {};
+      const cardValueDefaults = {
+        wooden_shield: 3, iron_shield: 5, health_potion: 3,
+        greater_health_potion: 5, bronze_coin: 1, coin_pouch: 3,
+        treasure_chest: 5, spike_trap: 3
+      };
+      Object.entries(cardValueDefaults).forEach(([key, value]) => {
+        if (typeof config.cardValues[key] !== "number" || !Number.isFinite(config.cardValues[key])) {
+          config.cardValues[key] = value;
+        }
+      });
+
+      if (!config.threat || typeof config.threat !== "object") config.threat = {};
+      const threatDefaults = { progressPerLevel: 10, maxLevel: 10, hpPerLevel: 1 };
+      Object.entries(threatDefaults).forEach(([key, value]) => {
+        if (typeof config.threat[key] !== "number" || !Number.isFinite(config.threat[key])) config.threat[key] = value;
+      });
+
+      if (!config.spawnWeights || typeof config.spawnWeights !== "object") config.spawnWeights = {};
+      const spawnDefaults = {
+        enemyInitial: 32, enemyPerLevel: 1, enemyMax: 42,
+        trapInitial: 6, trapPerLevel: 1, trapMax: 11,
+        skeletonBaseShare: 0.20, skeletonPerLevel: 0.025, skeletonMaxShare: 0.45
+      };
+      Object.entries(spawnDefaults).forEach(([key, value]) => {
+        if (typeof config.spawnWeights[key] !== "number" || !Number.isFinite(config.spawnWeights[key])) config.spawnWeights[key] = value;
+      });
+
+      if (!config.audio || typeof config.audio !== "object") config.audio = {};
+      if (typeof config.audio.volume !== "number" || !Number.isFinite(config.audio.volume)) config.audio.volume = 0.65;
+      if (!config.effects || typeof config.effects !== "object") config.effects = {};
+      if (typeof config.effects.strength !== "number" || !Number.isFinite(config.effects.strength)) config.effects.strength = 1;
+
+      if (!Array.isArray(visuals.cellArtOffsets)) {
+        visuals.cellArtOffsets = Array.from({ length: 9 }, () => ({ x: 0, y: 0 }));
+      } else {
+        const oldOffsets = visuals.cellArtOffsets;
+        const repairedOffsets = [];
+        let needsRepair = oldOffsets.length !== 9;
+
+        for (let i = 0; i < 9; i++) {
+          const offset = oldOffsets[i];
+          if (!offset || !Number.isFinite(Number(offset.x)) || !Number.isFinite(Number(offset.y))) {
+            repairedOffsets.push({ x: 0, y: 0 });
+            needsRepair = true;
+          } else {
+            repairedOffsets.push(offset);
+          }
+        }
+
+        if (needsRepair) {
+          visuals.cellArtOffsets = repairedOffsets;
+        }
+      }
+
+      if (!visuals.heroOffset || typeof visuals.heroOffset !== "object") {
+        visuals.heroOffset = { x: 0, y: 0 };
+      } else if (
+        !Number.isFinite(Number(visuals.heroOffset.x)) ||
+        !Number.isFinite(Number(visuals.heroOffset.y))
+      ) {
+        visuals.heroOffset = { x: 0, y: 0 };
+      }
+
+      return config;
+    }
+
+    async function run(mode) {
+      if (activeCleanup) {
+        activeCleanup();
+        activeCleanup = null;
+      }
+
+      const currentMode = mode === "edit" ? "edit" : "play";
+      const isEditMode = currentMode === "edit";
+      const gameWorld = document.getElementById("game-world");
+      const canvas = document.getElementById("game-canvas");
+      const liveRegion = document.getElementById("live-region");
+      const mainMenuOverlay = document.getElementById("main-menu-overlay");
+      const playButton = document.getElementById("play-button");
+      const storeButton = document.getElementById("store-button");
+      const rulesButton = document.getElementById("rules-button");
+      const settingsButton = document.getElementById("settings-button");
+      const settingsPanel = document.getElementById("settings-panel");
+      const musicVolumeRange = document.getElementById("music-volume-range");
+      const musicVolumeValue = document.getElementById("music-volume-value");
+      const musicMuteButton = document.getElementById("music-mute-button");
+      const sfxVolumeRange = document.getElementById("sfx-volume-range");
+      const sfxVolumeValue = document.getElementById("sfx-volume-value");
+      const sfxMuteButton = document.getElementById("sfx-mute-button");
+      const storePanel = document.getElementById("store-panel");
+      const storeCloseButton = document.getElementById("store-close-button");
+      const storeReturnButton = document.getElementById("store-return-button");
+      const shopItemsElement = document.getElementById("shop-items");
+      const shopWalletBalance = document.getElementById("shop-wallet-balance");
+      const shopMessage = document.getElementById("shop-message");
+      const rulesPanel = document.getElementById("rules-panel");
+      const menuReturnButton = document.getElementById("menu-return-button");
+      const menuPanelCloseButtons = document.querySelectorAll("[data-close-menu-panel]");
+      const pauseButton = document.getElementById("pause-button");
+      const pauseOverlay = document.getElementById("pause-overlay");
+      const pauseContinueButton = document.getElementById("pause-continue-button");
+      const pauseRestartButton = document.getElementById("pause-restart-button");
+      const pauseMenuButton = document.getElementById("pause-menu-button");
+      const gameOverOverlay = document.getElementById("game-over-overlay");
+      const gameOverSubtitle = document.getElementById("game-over-subtitle");
+      const gameOverSteps = document.getElementById("game-over-steps");
+      const gameOverGold = document.getElementById("game-over-gold");
+      const restartButton = document.getElementById("restart-button");
+      let ctx = canvas.getContext("2d");
+      const config = ensureGameConfig();
+      const hostLibrary = getHostLibrary();
+
+      if (!ctx) return;
+
+      // En modo juego, mantener el tablero oculto hasta que se pulse JUGAR.
+      // El modo edición sigue mostrando el canvas desde el inicio.
+      canvas.style.visibility = isEditMode ? "visible" : "hidden";
+
+      canvas.width = LOGICAL_WIDTH;
+      canvas.height = LOGICAL_HEIGHT;
+      canvas.setAttribute(
+        "aria-label",
+        isEditMode
+          ? "Modo edición. Selecciona y arrastra las figuras dentro de sus casillas."
+          : "Tablero 3 por 3. Toca una casilla vecina o usa las flechas o WASD."
+      );
+
+      if (hostLibrary && typeof hostLibrary.showGameParameters === "function") {
+        try {
+          hostLibrary.showGameParameters({
+            name: "Mina: combate y botín",
+            params: {
+              "Tamaño de figuras": { key: "visuals.figureScale", type: "slider", min: 0.75, max: 1.2, step: 0.05 },
+              "Vida inicial": { key: "combat.initialHealth", type: "slider", min: 1, max: 60, step: 1 },
+              "Vida máxima": { key: "combat.maxHealth", type: "slider", min: 1, max: 60, step: 1 },
+              "Límite de escudo": { key: "combat.maxShield", type: "slider", min: 0, max: 10, step: 1 },
+              "Escudo de madera": { key: "cardValues.wooden_shield", type: "slider", min: 0, max: 30, step: 1 },
+              "Escudo de hierro": { key: "cardValues.iron_shield", type: "slider", min: 0, max: 30, step: 1 },
+              "Poción roja": { key: "cardValues.health_potion", type: "slider", min: 0, max: 30, step: 1 },
+              "Poción mayor": { key: "cardValues.greater_health_potion", type: "slider", min: 0, max: 60, step: 1 },
+              "Moneda": { key: "cardValues.bronze_coin", type: "slider", min: 0, max: 30, step: 1 },
+              "Bolsa de monedas": { key: "cardValues.coin_pouch", type: "slider", min: 0, max: 60, step: 1 },
+              "Cofre": { key: "cardValues.treasure_chest", type: "slider", min: 0, max: 100, step: 1 },
+              "Daño de trampa": { key: "cardValues.spike_trap", type: "slider", min: 1, max: 30, step: 1 },
+              "Profundidad · pasos por nivel": { key: "threat.progressPerLevel", type: "slider", min: 1, max: 30, step: 1 },
+              "Peso enemigo inicial (%)": { key: "spawnWeights.enemyInitial", type: "slider", min: 0, max: 80, step: 1 },
+              "Aumento enemigo por nivel (%)": { key: "spawnWeights.enemyPerLevel", type: "slider", min: 0, max: 20, step: 1 },
+              "Peso enemigo máximo (%)": { key: "spawnWeights.enemyMax", type: "slider", min: 0, max: 90, step: 1 },
+              "Peso trampa inicial (%)": { key: "spawnWeights.trapInitial", type: "slider", min: 0, max: 30, step: 1 },
+              "Aumento trampa por nivel (%)": { key: "spawnWeights.trapPerLevel", type: "slider", min: 0, max: 10, step: 1 },
+              "Peso trampa máximo (%)": { key: "spawnWeights.trapMax", type: "slider", min: 0, max: 40, step: 1 },
+              "Esqueletos · presencia inicial": { key: "spawnWeights.skeletonBaseShare", type: "slider", min: 0, max: 0.8, step: 0.05 },
+              "Esqueletos · aumento por nivel": { key: "spawnWeights.skeletonPerLevel", type: "slider", min: 0, max: 0.2, step: 0.01 },
+              "Esqueletos · máximo": { key: "spawnWeights.skeletonMaxShare", type: "slider", min: 0, max: 1, step: 0.05 },
+              "Volumen predeterminado de SFX": { key: "audio.volume", type: "slider", min: 0, max: 1, step: 0.05 },
+              "Fuerza de efectos": { key: "effects.strength", type: "slider", min: 0, max: 2, step: 0.1 }
+            }
+          });
+        } catch (error) {
+          // El juego sigue funcionando si el panel del host no está disponible.
+        }
+      }
+
+      let touchPreferred = false;
+      try {
+        if (hostLibrary && typeof hostLibrary.shouldUseTouchControls === "function") {
+          touchPreferred = !!hostLibrary.shouldUseTouchControls();
+        } else {
+          touchPreferred =
+            ("ontouchstart" in window) ||
+            (window.navigator && window.navigator.maxTouchPoints > 0);
+        }
+      } catch (error) {
+        touchPreferred = false;
+      }
+
+      const prefersReducedMotion =
+        !!(window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches);
+
+      // Estado de partida: solo vive en memoria y no se guarda en gameConfig.
+      const cards = Array(9).fill(null);
+      let hero = { row: 1, col: 1 };
+      let steps = 0;
+      let selectedCell = null;
+      let hoveredCell = null;
+      let drag = null;
+      let lastSpawnIndex = null;
+      let refillPulse = 0;
+      let previousFrameTime = 0;
+      let frameHandle = 0;
+      let disposed = false;
+      let gameOver = false;
+      let paused = false;
+      let menuActive = !isEditMode;
+      if (mainMenuOverlay) {
+        mainMenuOverlay.classList.toggle("is-visible", menuActive);
+        mainMenuOverlay.setAttribute("aria-hidden", menuActive ? "false" : "true");
+      }
+      if (gameOverOverlay) {
+        gameOverOverlay.classList.remove("is-visible");
+        gameOverOverlay.setAttribute("aria-hidden", "true");
+      }
+      if (pauseOverlay) {
+        pauseOverlay.hidden = true;
+        pauseOverlay.setAttribute("aria-hidden", "true");
+      }
+      if (pauseButton) pauseButton.hidden = true;
+      let shield = 0;
+      let gold = 0;
+      let defeatedEnemies = 0;
+      let bossSplitCell = null;
+      let bossSpawnPending = false;
+      let trapsActive = true;
+      let feedbackTimer = 0;
+      let feedbackDuration = 0.45;
+      let feedbackType = "";
+      let feedbackText = "";
+      let feedbackCell = null;
+      const combatLog = [];
+      const baseMaxHealth = Math.round(readTunable(config.combat.maxHealth, 10, 1, 60));
+      const baseInitialHealth = Math.round(readTunable(config.combat.initialHealth, 10, 1, baseMaxHealth));
+      const baseMaxShield = Math.round(readTunable(config.combat.maxShield, 10, 0, 10));
+      let maxHealth = baseMaxHealth;
+      let initialHealth = baseInitialHealth;
+      let maxShield = baseMaxShield;
+      let health = initialHealth;
+      const permanentUpgradeIds = ["mine_pocket", "leather_boots", "miner_amulet", "iron_vitality"];
+      const consumableIds = ["spiritual_elixir", "gold_magnet", "immunity_stone"];
+      const shopItems = [
+        { id: "spiritual_elixir", category: "CONSUMIBLES", emoji: "🧪", name: "Elixir de Fuerza Espiritual", price: 35, description: "Empieza la próxima partida con +3 de escudo." },
+        { id: "gold_magnet", category: "CONSUMIBLES", emoji: "🧲", name: "Imán de Oro", price: 45, description: "Las monedas de bronce dan +2 de oro durante 30 pasos." },
+        { id: "immunity_stone", category: "CONSUMIBLES", emoji: "🪨", name: "Piedra de Inmunidad", price: 50, description: "Anula por completo el primer impacto de daño." },
+        { id: "mine_pocket", category: "PERMANENTES", emoji: "🛡️", name: "Escudo Reforzado", price: 250, description: "Aumenta para siempre el límite de escudo a 15." },
+        { id: "leather_boots", category: "PERMANENTES", emoji: "👢", name: "Botas de Cuero", price: 180, description: "50% de probabilidad de evitar el daño de trampas activas." },
+        { id: "miner_amulet", category: "PERMANENTES", emoji: "🍀", name: "Amuleto de Minero", price: 300, description: "Aumenta la aparición de bolsas y cofres." },
+        { id: "iron_vitality", category: "PERMANENTES", emoji: "❤️", name: "Vitalidad de Hierro", price: 400, description: "Aumenta para siempre tu salud máxima a 12." }
+      ];
+      let playerProfile = { version: 1, wallet: 0, upgrades: {}, consumables: {} };
+      let persistenceReady = Promise.resolve();
+      let profileQueue = Promise.resolve();
+      const activeOperations = new Set();
+      let runEndedCredited = false;
+      let profilePersistenceReadyForWrites = false;
+      let activeRunItems = { spiritual_elixir: false, gold_magnet: false, immunity_stone: false };
+      let immunityStoneUsed = false;
+      const heldKeys = new Set();
+      const spriteCache = Object.create(null);
+      const soundCache = Object.create(null);
+      let audioContext = null;
+      let masterBusGain = null;
+      let musicBusGain = null;
+      let sfxBusGain = null;
+      const musicPlayers = new Map();
+      let currentMusicScene = null;
+      let musicTransitionToken = 0;
+      let musicVolume = 1;
+      let sfxVolume = readTunable(config.audio.volume, 0.65, 0, 1);
+      let lastMusicVolume = musicVolume;
+      let lastSfxVolume = sfxVolume > 0 ? sfxVolume : 0.65;
+      let musicMuted = false;
+      let sfxMuted = sfxVolume <= 0;
+      let audioPreferencesTouched = false;
+      let loadedGameState = {};
+      let threatPulseTimer = 0;
+      let shieldPulseTimer = 0;
+      let healthPulseTimer = 0;
+
+      function normalizePlayerProfile(rawState) {
+        const source = rawState && typeof rawState === "object"
+          ? (rawState.mineCrawl3x3 && typeof rawState.mineCrawl3x3 === "object" ? rawState.mineCrawl3x3 : rawState)
+          : {};
+        const walletValue = Number(source.wallet);
+        const upgradesSource = source.upgrades && typeof source.upgrades === "object" ? source.upgrades : {};
+        const consumablesSource = source.consumables && typeof source.consumables === "object" ? source.consumables : {};
+        const upgrades = {};
+        const consumables = {};
+        permanentUpgradeIds.forEach((id) => { upgrades[id] = upgradesSource[id] === true; });
+        consumableIds.forEach((id) => { consumables[id] = Number(consumablesSource[id]) > 0 ? 1 : 0; });
+        return {
+          version: 1,
+          wallet: Number.isFinite(walletValue) ? Math.max(0, Math.min(1000000000, Math.floor(walletValue))) : 0,
+          upgrades,
+          consumables
+        };
+      }
+
+      function snapshotPlayerProfile() {
+        return {
+          mineCrawl3x3: {
+            version: 1,
+            wallet: playerProfile.wallet,
+            upgrades: Object.fromEntries(permanentUpgradeIds.map((id) => [id, playerProfile.upgrades[id] === true])),
+            consumables: Object.fromEntries(consumableIds.map((id) => [id, playerProfile.consumables[id] ? 1 : 0]))
+          }
+        };
+      }
+
+      function snapshotAudioPreferences() {
+        return {
+          musicVolume: clamp(musicVolume, 0, 1),
+          sfxVolume: clamp(sfxVolume, 0, 1),
+          musicMuted: !!musicMuted,
+          sfxMuted: !!sfxMuted,
+          lastMusicVolume: clamp(lastMusicVolume || 1, 0.01, 1),
+          lastSfxVolume: clamp(lastSfxVolume || 0.65, 0.01, 1)
+        };
+      }
+
+      function restoreAudioPreferences(state) {
+        const stateObject = state && typeof state === "object" && !Array.isArray(state) ? state : {};
+        const mineState = stateObject.mineCrawl3x3 && typeof stateObject.mineCrawl3x3 === "object"
+          ? stateObject.mineCrawl3x3
+          : {};
+        const saved = mineState.audioPreferences;
+        if (!saved || typeof saved !== "object" || Array.isArray(saved)) return;
+
+        const savedMusicVolume = Number(saved.musicVolume);
+        const savedSfxVolume = Number(saved.sfxVolume);
+        musicVolume = Number.isFinite(savedMusicVolume) ? clamp(savedMusicVolume, 0, 1) : musicVolume;
+        sfxVolume = Number.isFinite(savedSfxVolume) ? clamp(savedSfxVolume, 0, 1) : sfxVolume;
+        musicMuted = typeof saved.musicMuted === "boolean" ? saved.musicMuted : musicVolume === 0;
+        sfxMuted = typeof saved.sfxMuted === "boolean" ? saved.sfxMuted : sfxVolume === 0;
+        if (musicMuted) musicVolume = 0;
+        if (sfxMuted) sfxVolume = 0;
+
+        const savedLastMusicVolume = Number(saved.lastMusicVolume);
+        const savedLastSfxVolume = Number(saved.lastSfxVolume);
+        lastMusicVolume = Number.isFinite(savedLastMusicVolume) && savedLastMusicVolume > 0
+          ? clamp(savedLastMusicVolume, 0.01, 1)
+          : (musicVolume > 0 ? musicVolume : 1);
+        lastSfxVolume = Number.isFinite(savedLastSfxVolume) && savedLastSfxVolume > 0
+          ? clamp(savedLastSfxVolume, 0.01, 1)
+          : (sfxVolume > 0 ? sfxVolume : readTunable(config.audio.volume, 0.65, 0.01, 1));
+        applyMusicVolume();
+        applySfxVolume();
+        updateAudioSettingsUI();
+      }
+
+      function snapshotPlayerGameState() {
+        const existingState = loadedGameState && typeof loadedGameState === "object" && !Array.isArray(loadedGameState)
+          ? loadedGameState
+          : {};
+        const existingMineState = existingState.mineCrawl3x3 && typeof existingState.mineCrawl3x3 === "object" && !Array.isArray(existingState.mineCrawl3x3)
+          ? existingState.mineCrawl3x3
+          : {};
+        return {
+          ...existingState,
+          mineCrawl3x3: {
+            ...existingMineState,
+            ...snapshotPlayerProfile().mineCrawl3x3,
+            audioPreferences: snapshotAudioPreferences()
+          }
+        };
+      }
+
+      function applyPermanentUpgradesToRun() {
+        const vitality = playerProfile.upgrades.iron_vitality === true;
+        maxHealth = Math.min(60, baseMaxHealth + (vitality ? 2 : 0));
+        initialHealth = Math.min(maxHealth, baseInitialHealth + (vitality ? 2 : 0));
+        maxShield = Math.min(15, baseMaxShield + (playerProfile.upgrades.mine_pocket === true ? 5 : 0));
+      }
+
+      function renderShop() {
+        if (shopWalletBalance) shopWalletBalance.textContent = String(playerProfile.wallet);
+        if (!shopItemsElement) return;
+        const savedScrollTop = shopItemsElement.scrollTop;
+        shopItemsElement.replaceChildren();
+        let currentCategory = "";
+        shopItems.forEach((item) => {
+          if (item.category !== currentCategory) {
+            currentCategory = item.category;
+            const heading = document.createElement("h3");
+            heading.className = "shop-category-title";
+            heading.textContent = currentCategory === "PERMANENTES" ? "🛠️ MEJORAS PERMANENTES · COMPRA ÚNICA" : "🧪 CONSUMIBLES · PARA LA PRÓXIMA PARTIDA";
+            shopItemsElement.appendChild(heading);
+          }
+          const row = document.createElement("article");
+          row.className = "shop-item";
+          const heading = document.createElement("div");
+          heading.className = "shop-item-heading";
+          const emoji = document.createElement("span");
+          emoji.className = "shop-item-emoji";
+          emoji.setAttribute("aria-hidden", "true");
+          emoji.textContent = item.emoji;
+          const details = document.createElement("div");
+          details.className = "shop-item-copy";
+          const name = document.createElement("h3");
+          name.textContent = item.name;
+          const description = document.createElement("p");
+          description.textContent = item.description;
+          details.append(name, description);
+          heading.append(emoji, details);
+
+          const footer = document.createElement("div");
+          footer.className = "shop-item-footer";
+          const priceBlock = document.createElement("div");
+          priceBlock.className = "shop-item-price-block";
+          const price = document.createElement("strong");
+          price.className = "shop-item-price";
+          price.textContent = `${item.price} 🪙`;
+          const meta = document.createElement("span");
+          meta.className = "shop-item-meta";
+          meta.textContent = item.category === "CONSUMIBLES"
+            ? `Inventario ${playerProfile.consumables[item.id] ? "1/1" : "0/1"}`
+            : "Compra única";
+          priceBlock.append(price, meta);
+
+          const button = document.createElement("button");
+          button.type = "button";
+          button.className = "shop-buy-button";
+          button.dataset.buyItem = item.id;
+          const owned = item.category === "PERMANENTES" && playerProfile.upgrades[item.id] === true;
+          const stocked = item.category === "CONSUMIBLES" && playerProfile.consumables[item.id] === 1;
+          const insufficient = playerProfile.wallet < item.price;
+          if (owned) {
+            button.textContent = "COMPRADO";
+            button.disabled = true;
+          } else if (stocked) {
+            button.textContent = "EN INVENTARIO";
+            button.disabled = true;
+          } else if (activeOperations.has("purchase") || !profileLoaded) {
+            button.textContent = profileLoaded ? "ESPERA…" : "CARGANDO…";
+            button.disabled = true;
+          } else if (insufficient) {
+            button.textContent = "COMPRAR";
+            button.disabled = true;
+          } else {
+            button.textContent = "COMPRAR";
+            button.disabled = false;
+          }
+          button.setAttribute("aria-label", `${button.textContent}: ${item.name}, ${item.price} de oro`);
+          footer.append(priceBlock, button);
+          row.append(heading, footer);
+          shopItemsElement.appendChild(row);
+        });
+        shopItemsElement.scrollTop = savedScrollTop;
+      }
+
+      let profileLoaded = false;
+
+      async function loadPlayerProfile() {
+        try {
+          if (hostLibrary && typeof hostLibrary.getUserGameState === "function") {
+            const response = await hostLibrary.getUserGameState();
+            loadedGameState = response && response.state && typeof response.state === "object" && !Array.isArray(response.state)
+              ? response.state
+              : {};
+            if (!audioPreferencesTouched) restoreAudioPreferences(loadedGameState);
+            profilePersistenceReadyForWrites = true;
+            if (sessionProfileHasUnsavedChanges && sessionPlayerProfileFallback) {
+              playerProfile = normalizePlayerProfile(sessionPlayerProfileFallback);
+            } else {
+              playerProfile = normalizePlayerProfile(response && response.state);
+              sessionPlayerProfileFallback = normalizePlayerProfile(snapshotPlayerProfile());
+              sessionProfileHasUnsavedChanges = false;
+            }
+          } else {
+            playerProfile = normalizePlayerProfile(sessionPlayerProfileFallback);
+          }
+        } catch (error) {
+          profilePersistenceReadyForWrites = false;
+          playerProfile = normalizePlayerProfile(sessionPlayerProfileFallback);
+          if (hostLibrary && typeof hostLibrary.log === "function") {
+            hostLibrary.log(`No se pudo cargar el progreso de la tienda; se usará una billetera temporal: ${error.message || error}`);
+          }
+        }
+        profileLoaded = true;
+        applyPermanentUpgradesToRun();
+        if (menuActive && !gameOver) {
+          health = initialHealth;
+          populateInitialBoard();
+        }
+        renderShop();
+        if (!disposed) drawGame();
+        return playerProfile;
+      }
+
+      async function persistPlayerProfile() {
+        if (!profilePersistenceReadyForWrites || !hostLibrary || typeof hostLibrary.saveUserGameState !== "function") return;
+        try {
+          const stateToSave = snapshotPlayerGameState();
+          await hostLibrary.saveUserGameState(stateToSave);
+          loadedGameState = stateToSave;
+          sessionProfileHasUnsavedChanges = false;
+        } catch (error) {
+          sessionProfileHasUnsavedChanges = true;
+          if (hostLibrary && typeof hostLibrary.log === "function") {
+            hostLibrary.log(`No se pudo guardar la billetera; los cambios se mantienen en esta sesión: ${error.message || error}`);
+          }
+        }
+      }
+
+      function mutatePlayerProfile(mutator) {
+        const operation = profileQueue.then(async () => {
+          await persistenceReady;
+          const result = mutator();
+          sessionPlayerProfileFallback = normalizePlayerProfile(snapshotPlayerProfile());
+          sessionProfileHasUnsavedChanges = true;
+          renderShop();
+          await persistPlayerProfile();
+          return result;
+        });
+        profileQueue = operation.catch(() => {});
+        return operation;
+      }
+
+      function queueAudioPreferencesSave() {
+        audioPreferencesTouched = true;
+        const operation = profileQueue.then(async () => {
+          await persistenceReady;
+          await persistPlayerProfile();
+        });
+        profileQueue = operation.catch(() => {});
+        return operation;
+      }
+
+      function threatThreshold() {
+        return Math.round(readTunable(config.threat.progressPerLevel, 10, 1, 100));
+      }
+
+      function threatProgress() {
+        return steps;
+      }
+
+      // La profundidad crece sin límite; la dificultad procedural queda fijada en el nivel 10.
+      function threatLevel() {
+        return Math.floor(threatProgress() / threatThreshold());
+      }
+
+      function difficultyLevel() {
+        return Math.min(MAX_THREAT_LEVEL, threatLevel());
+      }
+
+      function loadSoundAssets() {
+        ["combat_impact_sfx", "loot_chime_sfx", "game_over_sting", "potion_drink_sfx", "shield_equip_sfx", "menu_dungeon_bgm", "mine_battle_bgm"].forEach((assetId) => {
+          if (soundCache[assetId]) return;
+          let asset = null;
+          try {
+            asset = hostLibrary && typeof hostLibrary.getAsset === "function" ? hostLibrary.getAsset(assetId) : null;
+          } catch (error) { asset = null; }
+          const entry = { asset, bytes: null, buffer: null, loading: null, decoding: null };
+          soundCache[assetId] = entry;
+          if (!asset || !asset.url) return;
+          entry.loading = fetch(asset.url).then((response) => {
+            if (!response.ok) throw new Error("Audio fetch failed");
+            return response.arrayBuffer();
+          }).then((bytes) => {
+            entry.bytes = bytes;
+            return audioContext ? decodeSound(entry) : null;
+          }).catch(() => null);
+        });
+      }
+
+      function ensureAudioBuses() {
+        if (!audioContext || masterBusGain) return;
+        masterBusGain = audioContext.createGain();
+        musicBusGain = audioContext.createGain();
+        sfxBusGain = audioContext.createGain();
+        // Master headroom keeps music and frequent card effects comfortably below clipping.
+        masterBusGain.gain.value = 0.95;
+        musicBusGain.gain.value = musicVolume;
+        sfxBusGain.gain.value = sfxVolume;
+        musicBusGain.connect(masterBusGain);
+        sfxBusGain.connect(masterBusGain);
+        masterBusGain.connect(audioContext.destination);
+      }
+
+      function getAudioContext() {
+        if (audioContext) {
+          ensureAudioBuses();
+          if (audioContext.state === "suspended") audioContext.resume().catch(() => {});
+          return audioContext;
+        }
+        try {
+          const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+          if (!AudioContextClass) return null;
+          audioContext = new AudioContextClass();
+          ensureAudioBuses();
+          if (audioContext.state === "suspended") audioContext.resume().catch(() => {});
+          return audioContext;
+        } catch (error) { return null; }
+      }
+
+      function applyMusicVolume() {
+        if (audioContext && musicBusGain) {
+          musicBusGain.gain.setTargetAtTime(musicVolume, audioContext.currentTime, 0.035);
+        }
+      }
+
+      function applySfxVolume() {
+        if (audioContext && sfxBusGain) {
+          sfxBusGain.gain.setTargetAtTime(sfxVolume, audioContext.currentTime, 0.025);
+        }
+      }
+
+      function updateAudioSettingsUI() {
+        if (musicVolumeRange) musicVolumeRange.value = String(Math.round(musicVolume * 100));
+        if (musicVolumeValue) musicVolumeValue.textContent = `${Math.round(musicVolume * 100)}%`;
+        if (musicMuteButton) musicMuteButton.textContent = musicMuted ? "ACTIVAR MÚSICA" : "SILENCIAR MÚSICA";
+        if (sfxVolumeRange) sfxVolumeRange.value = String(Math.round(sfxVolume * 100));
+        if (sfxVolumeValue) sfxVolumeValue.textContent = `${Math.round(sfxVolume * 100)}%`;
+        if (sfxMuteButton) sfxMuteButton.textContent = sfxMuted ? "ACTIVAR SFX" : "SILENCIAR SFX";
+      }
+
+      function onMusicVolumeInput(event) {
+        setMusicVolumeFromUI(event.target.value);
+      }
+
+      function onSfxVolumeInput(event) {
+        setSfxVolumeFromUI(event.target.value);
+      }
+
+      function setMusicVolumeFromUI(value) {
+        musicVolume = clamp(Number(value) / 100, 0, 1);
+        musicMuted = musicVolume === 0;
+        if (musicVolume > 0) lastMusicVolume = musicVolume;
+        applyMusicVolume();
+        updateAudioSettingsUI();
+        queueAudioPreferencesSave().catch(() => {});
+      }
+
+      function setSfxVolumeFromUI(value) {
+        sfxVolume = clamp(Number(value) / 100, 0, 1);
+        sfxMuted = sfxVolume === 0;
+        if (sfxVolume > 0) lastSfxVolume = sfxVolume;
+        applySfxVolume();
+        updateAudioSettingsUI();
+        queueAudioPreferencesSave().catch(() => {});
+      }
+
+      function toggleMusicMute() {
+        if (musicMuted || musicVolume === 0) {
+          musicVolume = lastMusicVolume || 1;
+          musicMuted = false;
+        } else {
+          lastMusicVolume = musicVolume;
+          musicVolume = 0;
+          musicMuted = true;
+        }
+        applyMusicVolume();
+        updateAudioSettingsUI();
+        queueAudioPreferencesSave().catch(() => {});
+      }
+
+      function toggleSfxMute() {
+        if (sfxMuted || sfxVolume === 0) {
+          sfxVolume = lastSfxVolume || 0.65;
+          sfxMuted = false;
+        } else {
+          lastSfxVolume = sfxVolume;
+          sfxVolume = 0;
+          sfxMuted = true;
+        }
+        applySfxVolume();
+        updateAudioSettingsUI();
+        queueAudioPreferencesSave().catch(() => {});
+      }
+
+      function fadeMusicPlayer(player, target, seconds) {
+        if (!audioContext || !player || !player.gain) return;
+        const now = audioContext.currentTime;
+        const gain = player.gain.gain;
+        const fadeToken = (player.fadeToken || 0) + 1;
+        player.fadeToken = fadeToken;
+        gain.cancelScheduledValues(now);
+        gain.setValueAtTime(gain.value, now);
+        gain.linearRampToValueAtTime(target, now + seconds);
+        if (target === 0) {
+          window.setTimeout(() => {
+            if (player.fadeToken !== fadeToken || musicPlayers.get(player.scene) !== player || currentMusicScene === player.scene) return;
+            try { player.source.stop(); } catch (error) { /* The source may already have stopped. */ }
+            try { player.source.disconnect(); player.gain.disconnect(); } catch (error) { /* Best-effort cleanup. */ }
+            musicPlayers.delete(player.scene);
+          }, seconds * 1000 + 100);
+        }
+      }
+
+      async function setMusicScene(scene) {
+        const nextScene = scene === "menu" || scene === "mine" ? scene : null;
+        if (nextScene === currentMusicScene && nextScene && musicPlayers.has(nextScene)) {
+          const audio = getAudioContext();
+          if (!audio) return;
+          musicPlayers.forEach((player) => fadeMusicPlayer(player, player.scene === nextScene ? (nextScene === "mine" ? MINE_MUSIC_SCENE_GAIN : MENU_MUSIC_SCENE_GAIN) : 0, 0.75));
+          return;
+        }
+        if (nextScene === currentMusicScene && nextScene === null) return;
+        currentMusicScene = nextScene;
+        const token = ++musicTransitionToken;
+        const audio = getAudioContext();
+        if (!audio) return;
+        ensureAudioBuses();
+        applyMusicVolume();
+
+        if (!nextScene) {
+          musicPlayers.forEach((player) => fadeMusicPlayer(player, 0, 0.8));
+          return;
+        }
+
+        const assetId = nextScene === "menu" ? "menu_dungeon_bgm" : "mine_battle_bgm";
+        const entry = soundCache[assetId];
+        if (!entry || !entry.asset) return;
+        try {
+          if (entry.loading) await entry.loading;
+          const buffer = await decodeSound(entry);
+          if (!buffer || disposed || token !== musicTransitionToken || currentMusicScene !== nextScene) return;
+          let player = musicPlayers.get(nextScene);
+          if (!player) {
+            const source = audioContext.createBufferSource();
+            const trackGain = audioContext.createGain();
+            source.buffer = buffer;
+            source.loop = true;
+            trackGain.gain.value = 0;
+            source.connect(trackGain);
+            trackGain.connect(musicBusGain);
+            player = { scene: nextScene, source, gain: trackGain };
+            musicPlayers.set(nextScene, player);
+            source.onended = () => {
+              if (musicPlayers.get(nextScene) === player) musicPlayers.delete(nextScene);
+            };
+            source.start(0);
+          }
+          musicPlayers.forEach((activePlayer) => {
+            fadeMusicPlayer(activePlayer, activePlayer === player ? (nextScene === "mine" ? MINE_MUSIC_SCENE_GAIN : MENU_MUSIC_SCENE_GAIN) : 0, 1.05);
+          });
+        } catch (error) {
+          // Si falla un archivo BGM, los controles y SFX siguen funcionando.
+        }
+      }
+
+      function decodeSound(entry) {
+        if (!audioContext || !entry || !entry.bytes) return Promise.resolve(null);
+        if (entry.buffer) return Promise.resolve(entry.buffer);
+        if (entry.decoding) return entry.decoding;
+        entry.decoding = audioContext.decodeAudioData(entry.bytes.slice(0)).then((buffer) => {
+          entry.buffer = buffer;
+          return buffer;
+        }).catch(() => null);
+        return entry.decoding;
+      }
+
+      function playSound(assetId) {
+        const audio = getAudioContext();
+        if (!audio || sfxVolume <= 0) return;
+        ensureAudioBuses();
+        const entry = soundCache[assetId];
+        if (!entry || !entry.asset) return;
+        const ready = entry.loading ? entry.loading.then(() => decodeSound(entry)) : decodeSound(entry);
+        ready.then((buffer) => {
+          if (!buffer || disposed || !audioContext) return;
+          const source = audioContext.createBufferSource();
+          const gain = audioContext.createGain();
+          source.buffer = buffer;
+          gain.gain.value = 1;
+          source.connect(gain);
+          gain.connect(sfxBusGain || masterBusGain || audioContext.destination);
+          source.start(0);
+        }).catch(() => {});
+      }
+
+      function triggerFeedback(type, text, cellIndex) {
+        const strength = readTunable(config.effects.strength, 1, 0, 2);
+        if (type === "threat") {
+          feedbackType = type;
+          feedbackText = text || "";
+          feedbackCell = Number.isInteger(cellIndex) ? cellIndex : hero.row * BOARD_SIZE + hero.col;
+          feedbackDuration = clamp(0.42 * Math.max(0.45, strength), 0.2, 1.1);
+          feedbackTimer = feedbackDuration;
+          return;
+        }
+        feedbackType = type;
+        feedbackText = text || "";
+        feedbackCell = Number.isInteger(cellIndex) ? cellIndex : hero.row * BOARD_SIZE + hero.col;
+        feedbackDuration = clamp(0.42 * Math.max(0.45, strength), 0.2, 1.1);
+        feedbackTimer = feedbackDuration;
+        if (type === "impact") playSound("combat_impact_sfx");
+        else if (type === "potion") playSound("potion_drink_sfx");
+        else if (type === "shield") playSound("shield_equip_sfx");
+        else if (type === "heal" || type === "loot") playSound("loot_chime_sfx");
+        if (type === "shield") shieldPulseTimer = feedbackDuration;
+      }
+
+      function loadSprite(assetId) {
+        if (spriteCache[assetId]) return spriteCache[assetId];
+        const entry = { image: null, ready: false, failed: false };
+        spriteCache[assetId] = entry;
+
+        try {
+          const asset = hostLibrary && typeof hostLibrary.getAsset === "function"
+            ? hostLibrary.getAsset(assetId)
+            : null;
+          if (!asset || !asset.url) {
+            entry.failed = true;
+            return entry;
+          }
+
+          const image = new Image();
+          entry.image = image;
+          image.onload = () => {
+            entry.ready = true;
+            if (!disposed) drawGame();
+          };
+          image.onerror = () => {
+            entry.failed = true;
+            if (hostLibrary && typeof hostLibrary.log === "function") {
+              hostLibrary.log(`No se pudo cargar la ilustración ${assetId}.`);
+            }
+          };
+          image.src = asset.url;
+        } catch (error) {
+          entry.failed = true;
+        }
+
+        return entry;
+      }
+
+      function preloadSprites() {
+        loadSprite("explorer_token");
+        CARD_TYPES.forEach((cardType) => loadSprite(cardType.spriteId || cardType.id));
+        loadSprite("safe_stone_slab");
+      }
+
+      function cardTypeById(id) {
+        return CARD_TYPES.find((cardType) => cardType.id === id) || CARD_TYPES[0];
+      }
+
+      function readTunable(value, fallback, min, max) {
+        const numeric = Number(value);
+        return clamp(Number.isFinite(numeric) ? numeric : fallback, min, max);
+      }
+
+      function cardValue(typeId) {
+        if (typeId === "bronze_coin" && activeRunItems.gold_magnet && steps <= 30) return 2;
+        const defaults = {
+          wooden_shield: 3, iron_shield: 5, health_potion: 3,
+          greater_health_potion: 5, bronze_coin: 1, coin_pouch: 3,
+          treasure_chest: 5, spike_trap: 3
+        };
+        return Math.round(readTunable(config.cardValues[typeId], defaults[typeId] || 0, 0, 100));
+      }
+
+      function makeCard(typeId, applyThreatBonus) {
+        if (typeId === "slime_king") return { typeId, hp: 10, lifeDamage: 1 };
+        if (typeId === "mini_slime") return { typeId, hp: 3, lifeDamage: 1 };
+
+        // Las estadísticas de los enemigos comunes son estáticas durante toda la partida.
+        // La dificultad infinita escala solo las probabilidades y la composición de eventos.
+        const enemyStats = {
+          baby_slime: { hp: 1, lifeDamage: 1 },
+          cave_bat: { hp: 2, lifeDamage: 2 },
+          guardian_skeleton: { hp: 3, lifeDamage: 3 }
+        };
+        if (Object.prototype.hasOwnProperty.call(enemyStats, typeId)) {
+          return { typeId, ...enemyStats[typeId] };
+        }
+        return { typeId };
+      }
+
+      function spawnCategoryForType(typeId) {
+        if (["baby_slime", "cave_bat", "guardian_skeleton", "slime_king", "mini_slime"].includes(typeId)) return "enemy";
+        if (typeId === "spike_trap") return "trap";
+        if (["wooden_shield", "iron_shield", "health_potion", "greater_health_potion"].includes(typeId)) return "support";
+        return "loot";
+      }
+
+      function weightedSpawnCategory(weights) {
+        const entries = Object.entries(weights);
+        const totalWeight = entries.reduce((sum, [, weight]) => sum + Math.max(0, weight), 0);
+        if (totalWeight <= 0) return "enemy";
+        let roll = Math.random() * totalWeight;
+        for (const [category, weight] of entries) {
+          roll -= Math.max(0, weight);
+          if (roll < 0) return category;
+        }
+        return entries[entries.length - 1][0];
+      }
+
+      function chooseSpawnCategory() {
+        const level = difficultyLevel();
+        // Niveles 0-9: pesos accesibles exactos. Nivel 10+: balance estable de alta tensión.
+        const weights = level >= MAX_THREAT_LEVEL
+          ? { enemy: 40, support: 30, loot: 20, trap: 10 }
+          : { enemy: 40, support: 30, loot: 20, trap: 10 };
+        return weightedSpawnCategory(weights);
+      }
+
+      function createPlaceholderCard() {
+        const level = difficultyLevel();
+        const category = chooseSpawnCategory();
+        if (category === "enemy") {
+          let enemyId;
+          const monsterRoll = Math.random();
+          if (level >= MAX_THREAT_LEVEL) {
+            // Profundidad 10: pool interno exacto: slime 50%, murciélago 30%, guardián 20%.
+            enemyId = monsterRoll < 0.50
+              ? "baby_slime"
+              : monsterRoll < 0.80 ? "cave_bat" : "guardian_skeleton";
+          } else if (level >= SKELETON_UNLOCK_THREAT) {
+            // Profundidad 5-9: por carta generada, 50% slime, 25% murciélago, 25% guardián.
+            enemyId = monsterRoll < 0.50
+              ? "baby_slime"
+              : monsterRoll < 0.75 ? "cave_bat" : "guardian_skeleton";
+          } else {
+            // Profundidad 0-4: esqueletos bloqueados; slime y murciélago al 50% cada uno.
+            enemyId = monsterRoll < 0.50 ? "baby_slime" : "cave_bat";
+          }
+          return makeCard(enemyId, true);
+        }
+        if (category === "trap") return makeCard("spike_trap");
+        if (category === "support") {
+          if (level >= MAX_THREAT_LEVEL) {
+            // Threat 10: support is 30% globally; this split yields global rates
+            // of 10% health potion, 10% wooden shield, 5% greater potion, 5% iron shield.
+            const supportRoll = Math.random();
+            if (supportRoll < 1 / 3) return makeCard("health_potion");
+            if (supportRoll < 2 / 3) return makeCard("wooden_shield");
+            if (supportRoll < 5 / 6) return makeCard("greater_health_potion");
+            return makeCard("iron_shield");
+          }
+          if (Math.random() < 0.5) return makeCard(Math.random() < 0.5 ? "wooden_shield" : "iron_shield");
+          return makeCard(Math.random() < 0.5 ? "health_potion" : "greater_health_potion");
+        }
+        if (level >= MAX_THREAT_LEVEL) {
+          // Profundidad 10: dentro del 20% global de botín, 50/35/15% equivale
+          // a 10/7/3% global para moneda, bolsa y cofre, respectivamente.
+          // Esta distribución exacta prevalece sobre la bonificación del amuleto.
+          const lootRoll = Math.random();
+          if (lootRoll < 0.50) return makeCard("bronze_coin");
+          if (lootRoll < 0.85) return makeCard("coin_pouch");
+          return makeCard("treasure_chest");
+        }
+        if (playerProfile.upgrades.miner_amulet === true) {
+          const treasureRoll = Math.random();
+          // El amuleto reparte su bonificación entre bolsas y cofres.
+          const boostedWeight = (1 / 3) + 0.075;
+          if (treasureRoll < boostedWeight) return makeCard("coin_pouch");
+          if (treasureRoll < boostedWeight * 2) return makeCard("treasure_chest");
+          return makeCard("bronze_coin");
+        }
+        const treasures = ["bronze_coin", "coin_pouch", "treasure_chest"];
+        return makeCard(treasures[Math.floor(Math.random() * treasures.length)]);
+      }
+
+      function ensureBoardFilled() {
+        const heroIndex = hero.row * BOARD_SIZE + hero.col;
+        for (let i = 0; i < cards.length; i++) {
+          if (i !== heroIndex && (!cards[i] || !cards[i].typeId)) {
+            cards[i] = createPlaceholderCard() || makeCard("bronze_coin");
+          }
+        }
+      }
+
+      function populateInitialBoard() {
+        cards.fill(null);
+        // Pruebas iniciales garantizadas y adyacentes: escudo, trampa, murciélago y poción.
+        // El esqueleto se reserva estrictamente para Profundidad 5 o superior.
+        cards[1] = makeCard("wooden_shield");
+        cards[3] = makeCard("spike_trap");
+        cards[5] = makeCard("cave_bat");
+        cards[7] = makeCard("health_potion");
+        ensureBoardFilled();
+      }
+
+      populateInitialBoard();
+
+      function figureScale() {
+        const value = Number(config.visuals.figureScale);
+        return clamp(Number.isFinite(value) ? value : 1, 0.75, 1.2);
+      }
+
+      function cellPosition(index) {
+        const row = Math.floor(index / BOARD_SIZE);
+        const col = index % BOARD_SIZE;
+        return {
+          x: GRID_X + col * CELL_STEP_X,
+          y: GRID_Y + row * CELL_STEP_Y
+        };
+      }
+
+      function cellCenter(index) {
+        const position = cellPosition(index);
+        return {
+          x: position.x + CELL_WIDTH / 2,
+          y: position.y + CELL_HEIGHT / 2 - 2
+        };
+      }
+
+      function artOffset(index) {
+        const source = index === CENTER_INDEX
+          ? config.visuals.heroOffset
+          : config.visuals.cellArtOffsets[index];
+
+        const x = Number(source && source.x);
+        const y = Number(source && source.y);
+
+        return {
+          x: clamp(Number.isFinite(x) ? x : 0, -28, 28),
+          y: clamp(Number.isFinite(y) ? y : 0, -28, 28)
+        };
+      }
+
+      function setArtOffset(index, x, y) {
+        const nextOffset = {
+          x: Math.round(clamp(x, -28, 28) * 10) / 10,
+          y: Math.round(clamp(y, -28, 28) * 10) / 10
+        };
+
+        if (index === CENTER_INDEX) {
+          config.visuals.heroOffset = nextOffset;
+          return;
+        }
+
+        const nextOffsets = [];
+        for (let i = 0; i < 9; i++) {
+          if (i === index) {
+            nextOffsets.push(nextOffset);
+          } else {
+            const existing = config.visuals.cellArtOffsets[i] || { x: 0, y: 0 };
+            nextOffsets.push({
+              x: Number.isFinite(Number(existing.x)) ? Number(existing.x) : 0,
+              y: Number.isFinite(Number(existing.y)) ? Number(existing.y) : 0
+            });
+          }
+        }
+        config.visuals.cellArtOffsets = nextOffsets;
+      }
+
+      function isOrthogonalNeighbor(index) {
+        const row = Math.floor(index / BOARD_SIZE);
+        const col = index % BOARD_SIZE;
+        return Math.abs(row - hero.row) + Math.abs(col - hero.col) === 1;
+      }
+
+      function addLog(message) {
+        combatLog.unshift(message);
+        if (combatLog.length > 3) combatLog.length = 3;
+        if (liveRegion) liveRegion.textContent = message;
+      }
+
+      // Ciclo global ligado a los pasos válidos: interacciones 1-2 activas,
+      // interacciones 3-4 seguras. Se configura el estado para el siguiente paso.
+      function updateTrapTurn() {
+        const cycle = steps % 4;
+        trapsActive = cycle === 0 || cycle === 1;
+      }
+
+      function announceThreatLevel(previousLevel, cellIndex) {
+        const currentLevel = threatLevel();
+        if (currentLevel > previousLevel) {
+          threatPulseTimer = 0.9;
+          addLog(`¡La PROFUNDIDAD alcanza ${currentLevel}! La dificultad se estabiliza en el nivel ${Math.min(currentLevel, MAX_THREAT_LEVEL)}.`);
+          triggerFeedback("threat", `PROFUNDIDAD ${currentLevel}`, cellIndex);
+          if (previousLevel < MAX_THREAT_LEVEL && currentLevel >= MAX_THREAT_LEVEL) {
+            bossSpawnPending = true;
+            addLog("¡PROFUNDIDAD 10! El Rey Slime aparecerá en la próxima casilla despejada.");
+          }
+        }
+      }
+
+      function creditRunGoldOnce() {
+        if (runEndedCredited) return;
+        runEndedCredited = true;
+        const earned = Math.max(0, Math.floor(gold));
+        if (!earned) return;
+        mutatePlayerProfile(() => {
+          playerProfile.wallet = Math.min(1000000000, playerProfile.wallet + earned);
+          return true;
+        }).catch(() => {});
+      }
+
+      function setGameOver(message) {
+        if (gameOver) return;
+        setMusicScene(null);
+        gameOver = true;
+        paused = false;
+        closePausePanel();
+        syncPauseButton();
+        creditRunGoldOnce();
+        // Detener cualquier redibujado parcial para que cartas/animaciones no tapen el fin.
+        if (frameHandle) {
+          window.cancelAnimationFrame(frameHandle);
+          frameHandle = 0;
+        }
+        playSound("game_over_sting");
+        addLog(message);
+        if (gameOverSubtitle) gameOverSubtitle.textContent = message || "La mina te ha vencido.";
+        if (gameOverSteps) gameOverSteps.textContent = String(steps);
+        if (gameOverGold) gameOverGold.textContent = String(gold);
+        if (gameOverOverlay) {
+          gameOverOverlay.classList.add("is-visible");
+          gameOverOverlay.setAttribute("aria-hidden", "false");
+        }
+        if (liveRegion) liveRegion.textContent =
+          `Fin de la partida. ${message} Pasos: ${steps}. Oro: ${gold}. Toca Reiniciar partida.`;
+      }
+
+      function orthogonalNeighbors(index) {
+        const row = Math.floor(index / BOARD_SIZE);
+        const col = index % BOARD_SIZE;
+        const neighbors = [];
+        if (row > 0) neighbors.push(index - BOARD_SIZE);
+        if (row < BOARD_SIZE - 1) neighbors.push(index + BOARD_SIZE);
+        if (col > 0) neighbors.push(index - 1);
+        if (col < BOARD_SIZE - 1) neighbors.push(index + 1);
+        return neighbors;
+      }
+
+      function reserveBossSplitCell(bossIndex) {
+        const heroIndex = hero.row * BOARD_SIZE + hero.col;
+        const candidates = orthogonalNeighbors(bossIndex).filter((index) => index !== heroIndex);
+        // Reservar solo el índice, sin vaciar la carta: el tablero nunca muestra huecos.
+        return candidates.length ? candidates[0] : null;
+      }
+
+      function splitKingIntoMiniSlimes(bossIndex, formerHeroIndex) {
+        const candidates = orthogonalNeighbors(bossIndex);
+        const heroIndex = hero.row * BOARD_SIZE + hero.col;
+        const slots = [];
+        if (candidates.includes(formerHeroIndex) && formerHeroIndex !== heroIndex) slots.push(formerHeroIndex);
+        if (bossSplitCell !== null && candidates.includes(bossSplitCell) && bossSplitCell !== heroIndex && !slots.includes(bossSplitCell)) {
+          slots.push(bossSplitCell);
+        }
+        // Si una casilla reservada fue ocupada por el jugador, elige otra vecina.
+        for (const index of candidates) {
+          if (slots.length >= 2) break;
+          if (index !== heroIndex && !slots.includes(index)) slots.push(index);
+        }
+        slots.slice(0, 2).forEach((index) => { cards[index] = makeCard("mini_slime"); });
+        bossSplitCell = null;
+        addLog("¡El Rey Slime se divide en dos Mini Slimes de 3 PV!");
+        return slots.slice(0, 2);
+      }
+
+      function absorbSlimeEnergy() {
+        if (steps % 3 !== 0) return [];
+        const consumables = new Set([
+          "wooden_shield", "iron_shield", "health_potion", "greater_health_potion",
+          "bronze_coin", "coin_pouch", "treasure_chest", "spike_trap"
+        ]);
+        const slimeIndices = [];
+        cards.forEach((card, index) => {
+          if (card && (card.typeId === "slime_king" || card.typeId === "mini_slime")) slimeIndices.push(index);
+        });
+
+        // Pick all absorptions before refilling any consumed cells, so a new
+        // spawn cannot be absorbed again during the same three-step pulse.
+        const consumedIndices = new Set();
+        const absorptions = [];
+        slimeIndices.forEach((index) => {
+          const slime = cards[index];
+          if (!slime || slime.hp >= 5) return;
+          const adjacentCards = orthogonalNeighbors(index).filter((neighbor) =>
+            cards[neighbor] && consumables.has(cards[neighbor].typeId) && !consumedIndices.has(neighbor)
+          );
+          if (!adjacentCards.length) return;
+          const absorbedIndex = adjacentCards[Math.floor(Math.random() * adjacentCards.length)];
+          consumedIndices.add(absorbedIndex);
+          absorptions.push({ slimeIndex: index, absorbedIndex, absorbedType: cards[absorbedIndex].typeId });
+        });
+
+        const changed = [];
+        absorptions.forEach(({ slimeIndex, absorbedIndex, absorbedType }) => {
+          const slime = cards[slimeIndex];
+          if (!slime) return;
+          cards[absorbedIndex] = null;
+          slime.hp = Math.min(5, slime.hp + 1);
+          changed.push(slimeIndex);
+          const name = cardTypeById(slime.typeId).label;
+          addLog(`${name} absorbe ${cardTypeById(absorbedType).label} y recupera 1 PV (${slime.hp}/5).`);
+          triggerFeedback("heal", "+1 PV SLIME", slimeIndex);
+        });
+
+        // Absorbed cells refill immediately, preserving the always-populated board.
+        absorptions.forEach(({ absorbedIndex }) => {
+          changed.push(...refillFormerCell(absorbedIndex));
+        });
+        return changed;
+      }
+
+      function refillFormerCell(fromIndex, forceBoss = false) {
+        const newCard = forceBoss
+          ? makeCard("slime_king")
+          : (createPlaceholderCard() || makeCard("bronze_coin"));
+        if (forceBoss) bossSpawnPending = false;
+        cards[fromIndex] = newCard;
+        lastSpawnIndex = fromIndex;
+        refillPulse = prefersReducedMotion ? 0 : 0.38;
+        const changed = [fromIndex];
+        if (newCard.typeId === "slime_king") {
+          bossSplitCell = reserveBossSplitCell(fromIndex);
+          if (bossSplitCell !== null) changed.push(bossSplitCell);
+          if (forceBoss) {
+            addLog("¡EL REY SLIME APARECE A TU LADO! La Profundidad 10 ha desatado el combate final.");
+            triggerFeedback("threat", "¡JEFE FINAL!", fromIndex);
+          } else {
+            addLog("¡Ha aparecido el REY SLIME! ¡Derrota al jefe antes de que se cure!");
+          }
+        }
+        return changed;
+      }
+
+      function applyShieldedDamage(amount, sourceName, targetIndex) {
+        const incoming = Math.max(0, Math.round(Number(amount) || 0));
+        if (incoming > 0 && activeRunItems.immunity_stone && !immunityStoneUsed) {
+          immunityStoneUsed = true;
+          addLog(`Piedra de Inmunidad: anuló por completo el primer golpe de ${sourceName}.`);
+          triggerFeedback("shield", "GOLPE ANULADO", targetIndex);
+          return;
+        }
+        const absorbed = Math.min(shield, incoming);
+        shield -= absorbed;
+        const damageToHealth = incoming - absorbed;
+        health = Math.max(0, health - damageToHealth);
+
+        if (absorbed > 0 && damageToHealth > 0) {
+          addLog(`${sourceName}: ❤️ ${incoming}; escudo -${absorbed}, vida -${damageToHealth}.`);
+          shieldPulseTimer = feedbackDuration;
+        } else if (absorbed > 0) {
+          addLog(`${sourceName}: ❤️ ${incoming}; el escudo absorbe todo el golpe.`);
+          shieldPulseTimer = feedbackDuration;
+        } else {
+          addLog(`${sourceName}: ❤️ ${incoming}; vida -${damageToHealth}.`);
+        }
+
+        triggerFeedback("impact", damageToHealth > 0 ? `-${damageToHealth} ❤️` : `ESCUDO -${absorbed}`, targetIndex);
+        if (damageToHealth > 0) healthPulseTimer = feedbackDuration;
+        if (health <= 0) setGameOver(`${sourceName}: has perdido toda la vida.`);
+      }
+
+      function tryMoveTo(targetRow, targetCol) {
+        if (isEditMode || gameOver || paused) return false;
+        if (
+          targetRow < 0 || targetRow >= BOARD_SIZE ||
+          targetCol < 0 || targetCol >= BOARD_SIZE
+        ) {
+          return false;
+        }
+
+        const distance = Math.abs(targetRow - hero.row) + Math.abs(targetCol - hero.col);
+        if (distance !== 1) return false;
+
+        const fromIndex = hero.row * BOARD_SIZE + hero.col;
+        const toIndex = targetRow * BOARD_SIZE + targetCol;
+        const card = cards[toIndex];
+        if (!card) return false;
+        // Solo una acción iniciada después de alcanzar Profundidad 10 puede activar la aparición forzada.
+        const bossSpawnWasPending = bossSpawnPending;
+
+        // El nivel de profundidad avanza exclusivamente con los pasos realizados.
+        const previousThreatLevel = threatLevel();
+        steps += 1;
+        const typeId = card.typeId;
+        const isBoss = typeId === "slime_king";
+        const isMiniSlime = typeId === "mini_slime";
+        const isEnemy = isBoss || isMiniSlime || typeId === "baby_slime" || typeId === "guardian_skeleton" || typeId === "cave_bat";
+        let consumed = !isEnemy;
+        let bossDefeated = false;
+        let splitCells = [];
+
+        if (isBoss || isMiniSlime) {
+          const enemyName = cardTypeById(typeId).label;
+          applyShieldedDamage(card.lifeDamage, enemyName, toIndex);
+          card.hp = Math.max(0, card.hp - 1);
+          if (card.hp <= 0) {
+            addLog(`${enemyName} derrotado.`);
+            consumed = true;
+            bossDefeated = isBoss;
+          } else {
+            addLog(`${enemyName}: ❤️ ${card.hp} PV restantes.`);
+          }
+        } else if (isEnemy) {
+          const enemyName = cardTypeById(typeId).label;
+          applyShieldedDamage(card.lifeDamage, enemyName, toIndex);
+          addLog(`${enemyName} derrotado.`);
+          consumed = true;
+        } else if (typeId === "wooden_shield" || typeId === "iron_shield") {
+          const before = shield;
+          shield = Math.min(maxShield, shield + cardValue(typeId));
+          addLog(`${cardTypeById(typeId).label}: +${shield - before} escudo (${shield}/${maxShield}).`);
+          triggerFeedback("shield", `+${shield - before} ESCUDO`, toIndex);
+        } else if (typeId === "health_potion" || typeId === "greater_health_potion") {
+          const before = health;
+          health = Math.min(maxHealth, health + cardValue(typeId));
+          addLog(`Curación: +${health - before} PV (${health}/${maxHealth}).`);
+          triggerFeedback("potion", `+${health - before} PV`, toIndex);
+        } else if (typeId === "bronze_coin" || typeId === "coin_pouch" || typeId === "treasure_chest") {
+          const amount = cardValue(typeId);
+          gold += amount;
+          addLog(`Tesoro: +${amount} oro (total ${gold}).`);
+          triggerFeedback("loot", `+${amount} ORO`, toIndex);
+        } else if (typeId === "spike_trap") {
+          const damage = trapsActive ? cardValue(typeId) : 0;
+          if (trapsActive && playerProfile.upgrades.leather_boots === true && Math.random() < 0.5) {
+            addLog("¡Botas de Cuero! Evitaste todo el daño de la trampa.");
+            triggerFeedback("loot", "TRAMPA ESQUIVADA", toIndex);
+          } else if (trapsActive) {
+            applyShieldedDamage(damage, "¡Trampa activa!", toIndex);
+          } else {
+            addLog("Pasaste por una trampa inactiva de forma segura.");
+            triggerFeedback("loot", "TRAMPA SEGURA", toIndex);
+          }
+        }
+
+        if (consumed) {
+          if (isEnemy) defeatedEnemies += 1;
+          cards[toIndex] = null;
+          hero = { row: targetRow, col: targetCol };
+          if (bossDefeated) splitCells = splitKingIntoMiniSlimes(toIndex, fromIndex);
+        }
+
+        const trapsWereActive = trapsActive;
+        updateTrapTurn();
+        announceThreatLevel(previousThreatLevel, toIndex);
+        let changedCells = [fromIndex, toIndex, ...splitCells];
+        if (consumed && !bossDefeated) changedCells.push(...refillFormerCell(fromIndex, bossSpawnWasPending));
+        changedCells.push(...absorbSlimeEnergy());
+        // Reparación defensiva tras combate, división, absorción y recarga de cartas.
+        ensureBoardFilled();
+
+        if (liveRegion && !gameOver) {
+          liveRegion.textContent = `Paso ${steps}. Vida ${health}/${maxHealth}, escudo ${shield}, oro ${gold}. Profundidad ${threatLevel()}, progreso ${threatProgress() % threatThreshold()} de ${threatThreshold()} pasos para el próximo nivel. Dificultad estable desde el nivel ${MAX_THREAT_LEVEL}.`;
+        }
+
+        if (trapsWereActive !== trapsActive) {
+          cards.forEach((changedCard, index) => {
+            if (changedCard && changedCard.typeId === "spike_trap" && !changedCells.includes(index)) {
+              changedCells.push(index);
+            }
+          });
+        }
+        if (hoveredCell !== null && !changedCells.includes(hoveredCell)) changedCells.push(hoveredCell);
+        changedCells = Array.from(new Set(changedCells));
+        hoveredCell = null;
+        if (gameOver) drawGame();
+        else drawStepUpdate(changedCells);
+        scheduleAnimationFrame();
+        return true;
+      }
+
+      function pointerToCanvas(event) {
+        const rect = canvas.getBoundingClientRect();
+        if (!rect.width || !rect.height) return null;
+        return {
+          x: (event.clientX - rect.left) * LOGICAL_WIDTH / rect.width,
+          y: (event.clientY - rect.top) * LOGICAL_HEIGHT / rect.height
+        };
+      }
+
+      function cellAtPoint(x, y) {
+        const localX = x - GRID_X;
+        const localY = y - GRID_Y;
+        if (localX < 0 || localY < 0) return null;
+
+        const col = Math.floor(localX / CELL_STEP_X);
+        const row = Math.floor(localY / CELL_STEP_Y);
+        if (row < 0 || row >= BOARD_SIZE || col < 0 || col >= BOARD_SIZE) {
+          return null;
+        }
+
+        const withinCellX = localX - col * CELL_STEP_X;
+        const withinCellY = localY - row * CELL_STEP_Y;
+        if (withinCellX > CELL_WIDTH || withinCellY > CELL_HEIGHT) {
+          return null;
+        }
+
+        return row * BOARD_SIZE + col;
+      }
+
+      function focusCanvas() {
+        try {
+          canvas.focus({ preventScroll: true });
+        } catch (error) {
+          canvas.focus();
+        }
+      }
+
+      function onPointerDown(event) {
+        if (event.pointerType === "mouse" && event.button !== 0) return;
+
+        const point = pointerToCanvas(event);
+        if (!point) return;
+
+        event.preventDefault();
+        focusCanvas();
+
+        const index = cellAtPoint(point.x, point.y);
+        if (index === null) return;
+
+        if (!isEditMode) {
+          if (gameOver) {
+            if (point.x >= 108 && point.x <= 612 && point.y >= 790 && point.y <= 872) launchNewRun();
+            return;
+          }
+          tryMoveTo(Math.floor(index / BOARD_SIZE), index % BOARD_SIZE);
+          return;
+        }
+
+        selectedCell = index;
+        redrawBoardCell(index);
+        const base = cellCenter(index);
+        const offset = artOffset(index);
+        const artX = base.x + offset.x;
+        const artY = base.y + offset.y;
+
+        // En edición se puede recolocar la figura dentro de su casilla;
+        // la estructura fija del tablero no se altera.
+        if (Math.abs(point.x - artX) <= 68 && Math.abs(point.y - artY) <= 84) {
+          drag = {
+            pointerId: event.pointerId,
+            index,
+            grabX: point.x - artX,
+            grabY: point.y - artY
+          };
+          try {
+            canvas.setPointerCapture(event.pointerId);
+          } catch (error) {
+            // La captura no es imprescindible para editar.
+          }
+        }
+
+        canvas.style.cursor = drag ? "grabbing" : "grab";
+      }
+
+      function onPointerMove(event) {
+        const point = pointerToCanvas(event);
+        if (!point) return;
+
+        if (isEditMode && drag && drag.pointerId === event.pointerId) {
+          event.preventDefault();
+          const base = cellCenter(drag.index);
+          setArtOffset(
+            drag.index,
+            point.x - base.x - drag.grabX,
+            point.y - base.y - drag.grabY
+          );
+          selectedCell = drag.index;
+          canvas.style.cursor = "grabbing";
+          drawGame();
+          return;
+        }
+
+        const previousHoveredCell = hoveredCell;
+        hoveredCell = cellAtPoint(point.x, point.y);
+
+        if (isEditMode) {
+          canvas.style.cursor = hoveredCell === null ? "default" : "grab";
+        } else {
+          canvas.style.cursor =
+            hoveredCell !== null && isOrthogonalNeighbor(hoveredCell)
+              ? "pointer"
+              : "default";
+        }
+        if (previousHoveredCell !== hoveredCell) {
+          const cellsToRefresh = [previousHoveredCell, hoveredCell].filter((index) => index !== null);
+          cellsToRefresh.forEach((index) => redrawBoardCell(index));
+        }
+      }
+
+      function finishPointer(event) {
+        if (drag && drag.pointerId === event.pointerId) {
+          drag = null;
+          canvas.style.cursor = isEditMode ? "grab" : "default";
+        }
+      }
+
+      function onPointerLeave() {
+        if (!drag) {
+          const previousHoveredCell = hoveredCell;
+          hoveredCell = null;
+          canvas.style.cursor = "default";
+          if (previousHoveredCell !== null) redrawBoardCell(previousHoveredCell);
+        }
+      }
+
+      const keyDirections = {
+        arrowup: [-1, 0],
+        w: [-1, 0],
+        arrowdown: [1, 0],
+        s: [1, 0],
+        arrowleft: [0, -1],
+        a: [0, -1],
+        arrowright: [0, 1],
+        d: [0, 1]
+      };
+
+      function onKeyDown(event) {
+        const key = String(event.key || "").toLowerCase();
+        if (menuActive) return;
+        if (!isEditMode && key === "escape" && !gameOver) {
+          event.preventDefault();
+          if (paused) resumeGame();
+          else openPauseMenu();
+          return;
+        }
+        if (paused) return;
+        if (!isEditMode && gameOver && (key === "enter" || key === " ")) {
+          event.preventDefault();
+          launchNewRun();
+          return;
+        }
+        const direction = keyDirections[key];
+        if (!direction) return;
+
+        event.preventDefault();
+        if (event.repeat || heldKeys.has(key)) return;
+
+        heldKeys.add(key);
+        if (!isEditMode) tryMoveTo(hero.row + direction[0], hero.col + direction[1]);
+      }
+
+      function onKeyUp(event) {
+        heldKeys.delete(String(event.key || "").toLowerCase());
+      }
+
+      function onWindowBlur() {
+        heldKeys.clear();
+        drag = null;
+        const previousHoveredCell = hoveredCell;
+        hoveredCell = null;
+        if (previousHoveredCell !== null) redrawBoardCell(previousHoveredCell);
+        canvas.style.cursor = "default";
+      }
+
+      function drawBackground() {
+        // Pared de roca oscura: la textura se dibuja únicamente bajo la interfaz.
+        const background = ctx.createLinearGradient(0, 0, LOGICAL_WIDTH, LOGICAL_HEIGHT);
+        background.addColorStop(0, "#292521");
+        background.addColorStop(0.48, "#1c1917");
+        background.addColorStop(1, "#110e0c");
+        ctx.fillStyle = background;
+        ctx.fillRect(0, 0, LOGICAL_WIDTH, LOGICAL_HEIGHT);
+
+        // Retícula de bloques de piedra con variación determinista para evitar parpadeo.
+        const stoneHash = (x, y, salt) => {
+          const n = Math.sin(x * 127.1 + y * 311.7 + salt * 74.7) * 43758.5453;
+          return n - Math.floor(n);
+        };
+        ctx.save();
+        for (let row = -1; row < 12; row++) {
+          const blockH = 108 + stoneHash(0, row, 1) * 35;
+          const y = row * 122 - 8;
+          const stagger = row % 2 ? -72 : 0;
+          for (let col = -1; col < 6; col++) {
+            const x = col * 154 + stagger;
+            const inset = 5 + stoneHash(col, row, 2) * 9;
+            const w = 145 + stoneHash(col, row, 3) * 22;
+            const h = blockH - stoneHash(col, row, 4) * 10;
+            const tone = Math.floor(stoneHash(col, row, 5) * 15);
+            const base = 37 + tone;
+            const rock = ctx.createLinearGradient(x, y, x + w, y + h);
+            rock.addColorStop(0, `rgb(${base + 8}, ${base + 5}, ${base + 1})`);
+            rock.addColorStop(0.55, `rgb(${base}, ${base - 2}, ${base - 5})`);
+            rock.addColorStop(1, `rgb(${base - 11}, ${base - 12}, ${base - 14})`);
+
+            ctx.beginPath();
+            ctx.moveTo(x + inset + 8, y + 3);
+            ctx.lineTo(x + w - 18, y + 2 + stoneHash(col, row, 6) * 7);
+            ctx.lineTo(x + w - 3, y + inset + 12);
+            ctx.lineTo(x + w - 5, y + h - 15);
+            ctx.lineTo(x + w - inset - 11, y + h - 3);
+            ctx.lineTo(x + 18, y + h - 2);
+            ctx.lineTo(x + 3, y + h - inset - 7);
+            ctx.lineTo(x + 4, y + 18 + stoneHash(col, row, 7) * 8);
+            ctx.closePath();
+            ctx.fillStyle = rock;
+            ctx.fill();
+            ctx.strokeStyle = "rgba(8, 7, 6, 0.58)";
+            ctx.lineWidth = 3;
+            ctx.stroke();
+
+            // Facetas rugosas de roca y grietas ramificadas dentro de cada bloque.
+            ctx.beginPath();
+            ctx.moveTo(x + 19, y + 20);
+            ctx.lineTo(x + w * 0.38, y + 25 + stoneHash(col, row, 8) * 12);
+            ctx.lineTo(x + w * 0.54, y + h * 0.46);
+            ctx.strokeStyle = "rgba(157, 143, 125, 0.12)";
+            ctx.lineWidth = 2;
+            ctx.stroke();
+
+            const crackX = x + 28 + stoneHash(col, row, 9) * (w - 56);
+            const crackY = y + 28 + stoneHash(col, row, 10) * 25;
+            ctx.beginPath();
+            ctx.moveTo(crackX, crackY);
+            ctx.lineTo(crackX + 8, crackY + 13);
+            ctx.lineTo(crackX + 2, crackY + 25);
+            ctx.lineTo(crackX + 15, crackY + 39);
+            ctx.moveTo(crackX + 3, crackY + 24);
+            ctx.lineTo(crackX - 8, crackY + 33);
+            ctx.strokeStyle = "rgba(9, 8, 7, 0.72)";
+            ctx.lineWidth = 2;
+            ctx.stroke();
+
+            // Veta mineral tenue, cálida, como cobre incrustado en la pared.
+            if (stoneHash(col, row, 11) > 0.56) {
+              ctx.beginPath();
+              ctx.moveTo(x + 24, y + h * 0.72);
+              ctx.lineTo(x + w * 0.34, y + h * 0.66);
+              ctx.lineTo(x + w * 0.48, y + h * 0.76);
+              ctx.lineTo(x + w * 0.71, y + h * 0.70);
+              ctx.strokeStyle = "rgba(174, 112, 53, 0.22)";
+              ctx.lineWidth = 2;
+              ctx.stroke();
+            }
+          }
+        }
+        ctx.restore();
+
+        // Iluminación cálida ambiental conserva la lectura de la cueva sin alterar la UI.
+        const topGlow = ctx.createRadialGradient(570, 150, 10, 570, 150, 520);
+        topGlow.addColorStop(0, "rgba(245, 158, 11, 0.11)");
+        topGlow.addColorStop(1, "rgba(245, 158, 11, 0)");
+        ctx.fillStyle = topGlow;
+        ctx.fillRect(0, 0, LOGICAL_WIDTH, 680);
+        const lowerGlow = ctx.createRadialGradient(90, 1040, 10, 90, 1040, 480);
+        lowerGlow.addColorStop(0, "rgba(217, 119, 6, 0.08)");
+        lowerGlow.addColorStop(1, "rgba(217, 119, 6, 0)");
+        ctx.fillStyle = lowerGlow;
+        ctx.fillRect(0, 640, LOGICAL_WIDTH, 640);
+
+        const vignette = ctx.createRadialGradient(360, 640, 300, 360, 640, 850);
+        vignette.addColorStop(0, "rgba(0, 0, 0, 0)");
+        vignette.addColorStop(1, "rgba(0, 0, 0, 0.30)");
+        ctx.fillStyle = vignette;
+        ctx.fillRect(0, 0, LOGICAL_WIDTH, LOGICAL_HEIGHT);
+      }
+
+      let backgroundCache = null;
+
+      function buildBackgroundCache() {
+        const surface = document.createElement("canvas");
+        surface.width = LOGICAL_WIDTH;
+        surface.height = LOGICAL_HEIGHT;
+        const offscreenContext = surface.getContext("2d");
+        if (!offscreenContext) return;
+
+        const mainContext = ctx;
+        ctx = offscreenContext;
+        try {
+          drawBackground();
+          backgroundCache = surface;
+        } finally {
+          ctx = mainContext;
+        }
+      }
+
+      function drawHeader() {
+        ctx.save();
+
+        roundedRectPath(ctx, 56, 36, 410, 40, 20);
+        ctx.fillStyle = "rgba(54, 39, 28, 0.94)";
+        ctx.fill();
+        ctx.strokeStyle = "rgba(217, 119, 6, 0.48)";
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
+
+        ctx.beginPath();
+        ctx.arc(78, 56, 5, 0, Math.PI * 2);
+        ctx.fillStyle = "#f59e0b";
+        ctx.fill();
+
+        drawText(ctx, "MINA ABANDONADA · PROFUNDIDAD INFINITA", 94, 62,
+          '600 18px "Poppins", sans-serif', "#e4c9a5", "left");
+        drawText(ctx, "CARD MINE 3x3", 56, 126,
+          '700 46px "Orbitron", "Poppins", sans-serif', "#f5eadb", "left");
+        drawText(ctx, "Explora las profundidades de la mina...", 58, 157,
+          '400 20px "Poppins", sans-serif', "#c3ad95", "left");
+
+        ctx.restore();
+      }
+
+      function drawDirectionCross(cx, cy) {
+        ctx.save();
+        ctx.strokeStyle = "#f59e0b";
+        ctx.lineWidth = 3.5;
+        ctx.lineCap = "round";
+        ctx.lineJoin = "round";
+
+        ctx.beginPath();
+        ctx.moveTo(cx, cy - 3);
+        ctx.lineTo(cx, cy - 19);
+        ctx.moveTo(cx - 5, cy - 13);
+        ctx.lineTo(cx, cy - 19);
+        ctx.lineTo(cx + 5, cy - 13);
+
+        ctx.moveTo(cx, cy + 3);
+        ctx.lineTo(cx, cy + 19);
+        ctx.moveTo(cx - 5, cy + 13);
+        ctx.lineTo(cx, cy + 19);
+        ctx.lineTo(cx + 5, cy + 13);
+
+        ctx.moveTo(cx - 3, cy);
+        ctx.lineTo(cx - 19, cy);
+        ctx.moveTo(cx - 13, cy - 5);
+        ctx.lineTo(cx - 19, cy);
+        ctx.lineTo(cx - 13, cy + 5);
+
+        ctx.moveTo(cx + 3, cy);
+        ctx.lineTo(cx + 19, cy);
+        ctx.moveTo(cx + 13, cy - 5);
+        ctx.lineTo(cx + 19, cy);
+        ctx.lineTo(cx + 13, cy + 5);
+        ctx.stroke();
+
+        ctx.beginPath();
+        ctx.arc(cx, cy, 3, 0, Math.PI * 2);
+        ctx.fillStyle = "#d9fff7";
+        ctx.fill();
+        ctx.restore();
+      }
+
+      function drawStepsPanel() {
+        const panel = ctx.createLinearGradient(56, 178, 664, 286);
+        panel.addColorStop(0, "#382d23");
+        panel.addColorStop(1, "#211b16");
+        ctx.save();
+        roundedRectPath(ctx, 56, 178, 608, 108, 25);
+        ctx.fillStyle = panel;
+        ctx.fill();
+        ctx.strokeStyle = "rgba(151, 111, 73, 0.48)";
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
+
+        const level = threatLevel();
+        const threatColor = threatPulseTimer > 0 ? "#ff9b72" : (level > 0 ? "#ffcb78" : "#c9b49a");
+        const stats = [
+          { label: "🪙 ORO", value: String(gold), color: "#ffd878" },
+          { label: "👟 PASOS", value: String(steps), color: "#e8a83a" },
+          { label: "💀 PROFUNDIDAD", value: String(level), color: threatColor }
+        ];
+        const columnWidth = 608 / stats.length;
+        stats.forEach((stat, index) => {
+          const centerX = 56 + columnWidth * index + columnWidth / 2;
+          if (index > 0) {
+            ctx.beginPath();
+            ctx.moveTo(56 + columnWidth * index, 199);
+            ctx.lineTo(56 + columnWidth * index, 267);
+            ctx.strokeStyle = "rgba(205, 177, 143, 0.20)";
+            ctx.lineWidth = 1.5;
+            ctx.stroke();
+          }
+          // Los títulos y sus emojis comparten una escala mayor; fitText los
+          // mantiene dentro de cada columna incluso con fuentes emoji anchas.
+          fitText(ctx, stat.label, centerX, 217, columnWidth - 18, 20, "#c9b49a");
+          const fontSize = stat.value.length > 7 ? 25 : stat.value.length > 5 ? 31 : 38;
+          fitText(ctx, stat.value, centerX, 255, columnWidth - 20, fontSize, stat.color);
+          if (stat.label.includes("PROFUNDIDAD")) {
+            const progress = threatProgress() % threatThreshold();
+            drawText(ctx, `${progress}/${threatThreshold()} al siguiente`,
+              centerX, 273, '600 11px "Poppins", sans-serif', "#c9b49a", "center");
+          }
+        });
+        ctx.restore();
+      }
+
+      function drawGeometry(type, cx, cy, size, palette) {
+        const gradient = ctx.createLinearGradient(
+          cx - size,
+          cy - size,
+          cx + size,
+          cy + size
+        );
+        gradient.addColorStop(0, palette.light);
+        gradient.addColorStop(1, palette.accent);
+
+        const radius = size * 0.62;
+
+        ctx.save();
+        ctx.fillStyle = gradient;
+        ctx.strokeStyle = palette.light;
+        ctx.lineWidth = 3;
+        ctx.lineJoin = "round";
+        ctx.shadowColor = palette.accent;
+        ctx.shadowBlur = 15;
+
+        function fillAndStrokePath() {
+          ctx.fill();
+          ctx.stroke();
+        }
+
+        function polygon(points) {
+          ctx.beginPath();
+          ctx.moveTo(points[0][0], points[0][1]);
+          for (let i = 1; i < points.length; i++) {
+            ctx.lineTo(points[i][0], points[i][1]);
+          }
+          ctx.closePath();
+          fillAndStrokePath();
+        }
+
+        switch (type) {
+          case "circle":
+            ctx.beginPath();
+            ctx.arc(cx, cy, radius, 0, Math.PI * 2);
+            fillAndStrokePath();
+            break;
+
+          case "diamond":
+            polygon([
+              [cx, cy - radius * 1.12],
+              [cx + radius * 0.82, cy],
+              [cx, cy + radius * 1.12],
+              [cx - radius * 0.82, cy]
+            ]);
+            break;
+
+          case "triangle":
+            polygon([
+              [cx, cy - radius * 1.08],
+              [cx + radius, cy + radius * 0.86],
+              [cx - radius, cy + radius * 0.86]
+            ]);
+            break;
+
+          case "hexagon": {
+            const points = [];
+            for (let i = 0; i < 6; i++) {
+              const angle = -Math.PI / 2 + i * Math.PI / 3;
+              points.push([
+                cx + Math.cos(angle) * radius,
+                cy + Math.sin(angle) * radius
+              ]);
+            }
+            polygon(points);
+            break;
+          }
+
+          case "star": {
+            const points = [];
+            for (let i = 0; i < 10; i++) {
+              const angle = -Math.PI / 2 + i * Math.PI / 5;
+              const r = i % 2 === 0 ? radius * 1.12 : radius * 0.5;
+              points.push([
+                cx + Math.cos(angle) * r,
+                cy + Math.sin(angle) * r
+              ]);
+            }
+            polygon(points);
+            break;
+          }
+
+          case "square":
+            roundedRectPath(
+              ctx,
+              cx - radius * 0.82,
+              cy - radius * 0.82,
+              radius * 1.64,
+              radius * 1.64,
+              11
+            );
+            fillAndStrokePath();
+            break;
+
+          case "ring":
+            ctx.beginPath();
+            ctx.arc(cx, cy, radius * 0.82, 0, Math.PI * 2);
+            ctx.strokeStyle = palette.accent;
+            ctx.lineWidth = 12;
+            ctx.stroke();
+            ctx.beginPath();
+            ctx.arc(cx, cy, radius * 0.28, 0, Math.PI * 2);
+            ctx.fillStyle = palette.light;
+            ctx.fill();
+            break;
+
+          case "cross":
+            polygon([
+              [cx - radius * 0.35, cy - radius],
+              [cx + radius * 0.35, cy - radius],
+              [cx + radius * 0.35, cy - radius * 0.35],
+              [cx + radius, cy - radius * 0.35],
+              [cx + radius, cy + radius * 0.35],
+              [cx + radius * 0.35, cy + radius * 0.35],
+              [cx + radius * 0.35, cy + radius],
+              [cx - radius * 0.35, cy + radius],
+              [cx - radius * 0.35, cy + radius * 0.35],
+              [cx - radius, cy + radius * 0.35],
+              [cx - radius, cy - radius * 0.35],
+              [cx - radius * 0.35, cy - radius * 0.35]
+            ]);
+            break;
+        }
+
+        ctx.shadowBlur = 0;
+        ctx.beginPath();
+        ctx.arc(cx - size * 0.22, cy - size * 0.27, 3.5, 0, Math.PI * 2);
+        ctx.fillStyle = palette.light;
+        ctx.fill();
+
+        ctx.restore();
+      }
+
+      function fitText(ctx, text, centerX, y, maxWidth, baseSize, color) {
+        let size = baseSize;
+        ctx.font = `700 ${size}px "Poppins", sans-serif`;
+        while (ctx.measureText(text).width > maxWidth && size > 12) {
+          size -= 1;
+          ctx.font = `700 ${size}px "Poppins", sans-serif`;
+        }
+        ctx.fillStyle = color;
+        ctx.textAlign = "center";
+        ctx.textBaseline = "alphabetic";
+        ctx.fillText(text, centerX, y);
+      }
+
+      function drawSprite(assetId, cx, cy, size) {
+        const sprite = spriteCache[assetId];
+        if (!sprite || !sprite.ready || !sprite.image) {
+          ctx.save();
+          ctx.fillStyle = "rgba(224, 238, 244, 0.68)";
+          ctx.font = '600 13px "Poppins", sans-serif';
+          ctx.textAlign = "center";
+          ctx.textBaseline = "middle";
+          ctx.fillText(sprite && sprite.failed ? "ARTE NO DISPONIBLE" : "CARGANDO ARTE", cx, cy);
+          ctx.restore();
+          return;
+        }
+
+        const image = sprite.image;
+        const naturalWidth = image.naturalWidth || size;
+        const naturalHeight = image.naturalHeight || size;
+        const fit = Math.min(size / naturalWidth, size / naturalHeight);
+        const width = naturalWidth * fit;
+        const height = naturalHeight * fit;
+
+        ctx.save();
+        ctx.imageSmoothingEnabled = false;
+        ctx.shadowColor = "rgba(0, 0, 0, 0.28)";
+        ctx.shadowBlur = 8;
+        ctx.drawImage(image, cx - width / 2, cy - height / 2, width, height);
+        ctx.restore();
+      }
+
+      function drawHeartValue(centerX, baselineY, value, color) {
+        // Dibujo vectorial para que el corazón sea rojo vivo, nítido y consistente
+        // en todos los navegadores, sin depender del emoji/fuente del sistema.
+        const heartX = centerX - 9;
+        const heartY = baselineY - 8;
+        ctx.save();
+        ctx.beginPath();
+        ctx.moveTo(heartX, heartY + 11);
+        ctx.bezierCurveTo(heartX - 3, heartY + 8, heartX - 13, heartY + 1, heartX - 13, heartY - 5);
+        ctx.bezierCurveTo(heartX - 13, heartY - 13, heartX - 3, heartY - 15, heartX, heartY - 7);
+        ctx.bezierCurveTo(heartX + 4, heartY - 15, heartX + 13, heartY - 12, heartX + 13, heartY - 5);
+        ctx.bezierCurveTo(heartX + 13, heartY + 1, heartX + 3, heartY + 8, heartX, heartY + 11);
+        ctx.closePath();
+        const heartFill = ctx.createLinearGradient(heartX, heartY - 14, heartX, heartY + 11);
+        heartFill.addColorStop(0, "#ff5265");
+        heartFill.addColorStop(0.55, "#ff1738");
+        heartFill.addColorStop(1, "#d90028");
+        ctx.fillStyle = heartFill;
+        ctx.shadowColor = "rgba(255, 25, 55, 0.7)";
+        ctx.shadowBlur = 9;
+        ctx.fill();
+        ctx.shadowBlur = 0;
+        ctx.strokeStyle = "#3b0913";
+        ctx.lineWidth = 2.5;
+        ctx.lineJoin = "round";
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.ellipse(heartX - 5, heartY - 7, 2.2, 1.4, -0.55, 0, Math.PI * 2);
+        ctx.fillStyle = "rgba(255, 230, 232, 0.9)";
+        ctx.fill();
+
+        ctx.font = '700 20px "Poppins", sans-serif';
+        ctx.fillStyle = color || "#fff1f2";
+        ctx.textAlign = "left";
+        ctx.textBaseline = "middle";
+        ctx.fillText(String(value), centerX + 7, heartY);
+        ctx.restore();
+      }
+
+      function drawSafeTrapStone(cx, cy, size) {
+        ctx.save();
+        const width = size * 0.78;
+        const height = size * 0.64;
+        const x = cx - width / 2;
+        const y = cy - height / 2;
+        roundedRectPath(ctx, x, y, width, height, 12);
+        const stone = ctx.createLinearGradient(x, y, x + width, y + height);
+        stone.addColorStop(0, "#a8bdc5");
+        stone.addColorStop(0.5, "#718994");
+        stone.addColorStop(1, "#465d68");
+        ctx.fillStyle = stone;
+        ctx.fill();
+        ctx.strokeStyle = "#c0d0d4";
+        ctx.lineWidth = 4;
+        ctx.stroke();
+        roundedRectPath(ctx, x + 8, y + 8, width - 16, height - 16, 7);
+        ctx.strokeStyle = "rgba(28, 48, 58, 0.62)";
+        ctx.lineWidth = 2;
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.moveTo(x + 20, cy);
+        ctx.lineTo(x + width - 20, cy);
+        ctx.strokeStyle = "rgba(214, 229, 231, 0.45)";
+        ctx.lineWidth = 2;
+        ctx.stroke();
+        ctx.restore();
+      }
+
+      function drawCard(index, card, scale) {
+        // Failsafe visual y lógico: una celda libre jamás queda transparente.
+        if (!card || !card.typeId) {
+          card = createPlaceholderCard() || makeCard("bronze_coin");
+          cards[index] = card;
+        }
+
+        const position = cellPosition(index);
+        const type = cardTypeById(card.typeId);
+        const palette = PALETTES[type.paletteIndex] || PALETTES[0];
+        const offset = artOffset(index);
+
+        ctx.save();
+        ctx.translate(position.x, position.y);
+        ctx.scale(CELL_WIDTH / CELL_SIZE, CELL_HEIGHT / CELL_ART_HEIGHT);
+        const x = 0;
+        const y = 0;
+        ctx.shadowColor = "rgba(0, 0, 0, 0.34)";
+        ctx.shadowBlur = 18;
+        ctx.shadowOffsetY = 7;
+
+        const body = ctx.createLinearGradient(x, y, x + CELL_SIZE, y + CELL_ART_HEIGHT);
+        body.addColorStop(0, "#393029");
+        body.addColorStop(1, "#211c18");
+        roundedRectPath(ctx, x, y, CELL_SIZE, CELL_ART_HEIGHT, 24);
+        ctx.fillStyle = body;
+        ctx.fill();
+
+        ctx.shadowColor = "transparent";
+        ctx.shadowBlur = 0;
+        ctx.shadowOffsetY = 0;
+        ctx.strokeStyle = "#3d271d";
+        ctx.lineWidth = 4;
+        roundedRectPath(ctx, x, y, CELL_SIZE, CELL_ART_HEIGHT, 14);
+        ctx.stroke();
+        roundedRectPath(ctx, x + 4, y + 4, CELL_SIZE - 8, CELL_ART_HEIGHT - 8, 11);
+        ctx.strokeStyle = "#9a7045";
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
+        roundedRectPath(ctx, x + 9, y + 9, CELL_SIZE - 18, CELL_ART_HEIGHT - 18, 8);
+        ctx.strokeStyle = "rgba(16, 12, 9, 0.78)";
+        ctx.lineWidth = 2;
+        ctx.stroke();
+        [[x + 13, y + 13], [x + CELL_SIZE - 13, y + 13], [x + 13, y + CELL_ART_HEIGHT - 13], [x + CELL_SIZE - 13, y + CELL_ART_HEIGHT - 13]].forEach(([pinX, pinY]) => {
+          ctx.beginPath();
+          ctx.arc(pinX, pinY, 3, 0, Math.PI * 2);
+          ctx.fillStyle = "#a0784d";
+          ctx.fill();
+        });
+
+        roundedRectPath(ctx, x + 14, y + 12, CELL_SIZE - 28, 25, 12);
+        ctx.fillStyle = "rgba(7, 17, 28, 0.34)";
+        ctx.fill();
+        fitText(ctx, type.category, x + CELL_SIZE / 2, y + 35, CELL_SIZE - 46, 14, "#e0c7a6");
+
+        const artX = x + CELL_SIZE / 2 + offset.x;
+        const artY = y + CELL_ART_HEIGHT / 2 + 2 + offset.y;
+        const badge = ctx.createRadialGradient(artX - 8, artY - 10, 2, artX, artY, 40);
+        badge.addColorStop(0, "rgba(89, 67, 46, 0.68)");
+        badge.addColorStop(1, "rgba(24, 18, 13, 0.54)");
+        ctx.beginPath();
+        ctx.arc(artX, artY, 35, 0, Math.PI * 2);
+        ctx.fillStyle = badge;
+        ctx.fill();
+        ctx.strokeStyle = "rgba(220, 172, 111, 0.22)";
+        ctx.lineWidth = 1;
+        ctx.stroke();
+
+        if (type.id === "spike_trap" && !trapsActive) {
+          const safeSprite = spriteCache.safe_stone_slab;
+          if (safeSprite && safeSprite.ready) drawSprite("safe_stone_slab", artX, artY, 70 * scale);
+          else drawSafeTrapStone(artX, artY, 70 * scale);
+        } else {
+          drawSprite(type.spriteId || type.id, artX, artY, 70 * scale);
+        }
+        fitText(ctx, type.label, x + CELL_SIZE / 2, y + 137, CELL_SIZE - 12, 14, "#f0f6f8");
+        const statY = y + 160;
+        if (card.hp !== undefined) {
+          drawHeartValue(x + CELL_SIZE / 2, statY, card.hp, type.id === "slime_king" ? "#d7ff9a" : "#fff1f2");
+        } else if (card.lifeDamage !== undefined) {
+          drawHeartValue(x + CELL_SIZE / 2, statY, card.lifeDamage, "#fff1f2");
+        } else if (type.id === "wooden_shield" || type.id === "iron_shield") {
+          fitText(ctx, `+${cardValue(type.id)} ESCUDO`, x + CELL_SIZE / 2, statY, CELL_SIZE - 18, 15, "#d9e6eb");
+        } else if (type.id === "health_potion" || type.id === "greater_health_potion") {
+          fitText(ctx, `+${cardValue(type.id)} VIDA`, x + CELL_SIZE / 2, statY, CELL_SIZE - 18, 15, "#d9e6eb");
+        } else if (type.id === "bronze_coin" || type.id === "coin_pouch" || type.id === "treasure_chest") {
+          fitText(ctx, `+${cardValue(type.id)} ORO`, x + CELL_SIZE / 2, statY, CELL_SIZE - 18, 15, "#d9e6eb");
+        } else if (type.id === "spike_trap") {
+          if (trapsActive) drawHeartValue(x + CELL_SIZE / 2, statY, cardValue(type.id), "#fff1f2");
+          else fitText(ctx, "SEGURA", x + CELL_SIZE / 2, statY, CELL_SIZE - 18, 15, "#91efc1");
+        }
+        ctx.restore();
+      }
+
+      function drawHero(index, scale) {
+        const position = cellPosition(index);
+        const offset = artOffset(index);
+
+        ctx.save();
+        ctx.translate(position.x, position.y);
+        ctx.scale(CELL_WIDTH / CELL_SIZE, CELL_HEIGHT / CELL_ART_HEIGHT);
+        const x = 0;
+        const y = 0;
+        const artX = x + CELL_SIZE / 2 + offset.x;
+        const artY = y + CELL_ART_HEIGHT / 2 - 2 + offset.y;
+        ctx.shadowColor = "rgba(0, 0, 0, 0.38)";
+        ctx.shadowBlur = 20;
+        ctx.shadowOffsetY = 7;
+
+        const body = ctx.createLinearGradient(x, y, x + CELL_SIZE, y + CELL_ART_HEIGHT);
+        body.addColorStop(0, "#443321");
+        body.addColorStop(1, "#211a13");
+        roundedRectPath(ctx, x, y, CELL_SIZE, CELL_ART_HEIGHT, 14);
+        ctx.fillStyle = body;
+        ctx.fill();
+
+        ctx.shadowColor = "transparent";
+        ctx.shadowBlur = 0;
+        ctx.shadowOffsetY = 0;
+        ctx.strokeStyle = "#ffd878";
+        ctx.shadowColor = "rgba(255, 190, 67, 0.8)";
+        ctx.shadowBlur = 14;
+        ctx.lineWidth = 3;
+        roundedRectPath(ctx, x, y, CELL_SIZE, CELL_ART_HEIGHT, 14);
+        ctx.stroke();
+        ctx.shadowBlur = 0;
+        roundedRectPath(ctx, x + 6, y + 6, CELL_SIZE - 12, CELL_ART_HEIGHT - 12, 10);
+        ctx.strokeStyle = "rgba(255, 202, 112, 0.45)";
+        ctx.lineWidth = 1;
+        ctx.stroke();
+
+        roundedRectPath(ctx, x + 14, y + 12, CELL_SIZE - 28, 25, 12);
+        ctx.fillStyle = "rgba(7, 17, 28, 0.48)";
+        ctx.fill();
+        drawText(ctx, `🛡️ ${shield}`, x + 9, y + 33,
+          '700 12px "Poppins", sans-serif', "#d8edff", "left");
+        drawText(ctx, `❤️ ${health}`, x + CELL_SIZE - 9, y + 33,
+          '700 12px "Poppins", sans-serif', "#ffd9df", "right");
+
+        const aura = ctx.createRadialGradient(artX - 10, artY - 14, 8, artX, artY, 58);
+        aura.addColorStop(0, "rgba(69, 53, 37, 0.92)");
+        aura.addColorStop(0.72, "rgba(29, 23, 18, 0.82)");
+        aura.addColorStop(1, "rgba(245, 158, 11, 0.12)");
+        ctx.beginPath();
+        ctx.arc(artX, artY, 58, 0, Math.PI * 2);
+        ctx.fillStyle = aura;
+        ctx.fill();
+        ctx.strokeStyle = "rgba(220, 172, 111, 0.28)";
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
+
+        ctx.beginPath();
+        ctx.ellipse(artX, artY + 50 * scale, 30 * scale, 8 * scale, 0, 0, Math.PI * 2);
+        ctx.fillStyle = "rgba(6, 18, 28, 0.62)";
+        ctx.fill();
+        drawSprite("explorer_token", artX, artY, 108 * scale);
+
+        fitText(ctx, "EXPLORADOR", x + CELL_SIZE / 2, y + 152, CELL_SIZE - 12, 15, "#ffe0a3");
+        ctx.restore();
+      }
+
+      function drawCellFeedback(index, x, y) {
+        ctx.save();
+
+        if (isEditMode && selectedCell === index) {
+          roundedRectPath(ctx, x - 3, y - 3, CELL_WIDTH + 6, CELL_HEIGHT + 6, 27);
+          ctx.strokeStyle = "#ffd878";
+          ctx.lineWidth = 4;
+          ctx.stroke();
+        } else if (
+          !isEditMode &&
+          hoveredCell === index &&
+          isOrthogonalNeighbor(index)
+        ) {
+          roundedRectPath(ctx, x - 3, y - 3, CELL_WIDTH + 6, CELL_HEIGHT + 6, 27);
+          ctx.strokeStyle = "#ffd27a";
+          ctx.lineWidth = 4;
+          ctx.shadowColor = "#f59e0b";
+          ctx.shadowBlur = 15;
+          ctx.stroke();
+        }
+
+        if (!prefersReducedMotion && refillPulse > 0 && lastSpawnIndex === index) {
+          const alpha = 0.22 + 0.48 * (refillPulse / 0.38);
+          ctx.globalAlpha = alpha;
+          roundedRectPath(ctx, x - 2, y - 2, CELL_WIDTH + 4, CELL_HEIGHT + 4, 26);
+          ctx.strokeStyle = "#f5b942";
+          ctx.lineWidth = 3;
+          ctx.stroke();
+        }
+
+        if (!isEditMode && feedbackTimer > 0 && feedbackCell === index) {
+          const strength = readTunable(config.effects.strength, 1, 0, 2);
+          const progress = feedbackTimer / feedbackDuration;
+          const alpha = clamp(progress * 0.42 * strength, 0, 0.7);
+          const colors = { impact: "#ff657a", shield: "#70cfff", heal: "#83f0bb", loot: "#ffd66e", threat: "#ff875f" };
+          ctx.globalAlpha = alpha;
+          roundedRectPath(ctx, x - 2, y - 2, CELL_WIDTH + 4, CELL_HEIGHT + 4, 26);
+          ctx.fillStyle = colors[feedbackType] || "#ffffff";
+          ctx.fill();
+          ctx.globalAlpha = clamp(progress * 0.9, 0, 1);
+          ctx.strokeStyle = colors[feedbackType] || "#ffffff";
+          ctx.lineWidth = 3 + strength;
+          ctx.shadowColor = colors[feedbackType] || "#ffffff";
+          ctx.shadowBlur = 16 * strength;
+          roundedRectPath(ctx, x - 3, y - 3, CELL_WIDTH + 6, CELL_HEIGHT + 6, 27);
+          ctx.stroke();
+          ctx.shadowBlur = 0;
+          if (feedbackText) {
+            ctx.globalAlpha = clamp(progress, 0, 1);
+            fitText(ctx, feedbackText, x + CELL_SIZE / 2, y + 75 - (1 - progress) * 24,
+              CELL_SIZE - 16, 18, colors[feedbackType] || "#ffffff");
+          }
+        }
+
+        ctx.restore();
+      }
+
+      function drawBoardBase() {
+        const boardGradient = ctx.createLinearGradient(
+          BOARD_FRAME_X, BOARD_FRAME_Y,
+          BOARD_FRAME_X + BOARD_FRAME_WIDTH, BOARD_FRAME_Y + BOARD_FRAME_HEIGHT
+        );
+        boardGradient.addColorStop(0, "rgba(54, 43, 33, 0.98)");
+        boardGradient.addColorStop(1, "rgba(25, 21, 18, 0.99)");
+        roundedRectPath(ctx, BOARD_FRAME_X, BOARD_FRAME_Y, BOARD_FRAME_WIDTH, BOARD_FRAME_HEIGHT, 26);
+        ctx.fillStyle = boardGradient;
+        ctx.fill();
+        ctx.strokeStyle = "#49301e";
+        ctx.lineWidth = 6;
+        ctx.stroke();
+        roundedRectPath(ctx, BOARD_FRAME_X + 7, BOARD_FRAME_Y + 7, BOARD_FRAME_WIDTH - 14, BOARD_FRAME_HEIGHT - 14, 20);
+        ctx.strokeStyle = "rgba(190, 139, 66, 0.82)";
+        ctx.lineWidth = 2;
+        ctx.stroke();
+      }
+
+      function drawBoardThreatPulse() {
+        if (threatPulseTimer <= 0 || prefersReducedMotion) return;
+        const pulse = 0.15 + 0.25 * (threatPulseTimer / 0.9);
+        roundedRectPath(ctx, BOARD_FRAME_X, BOARD_FRAME_Y, BOARD_FRAME_WIDTH, BOARD_FRAME_HEIGHT, 26);
+        ctx.strokeStyle = `rgba(255, 139, 91, ${pulse})`;
+        ctx.lineWidth = 5;
+        ctx.shadowColor = "#ff765f";
+        ctx.shadowBlur = 18;
+        ctx.stroke();
+        ctx.shadowBlur = 0;
+      }
+
+      function drawBoard() {
+        ctx.save();
+        drawBoardBase();
+
+        const heroIndex = hero.row * BOARD_SIZE + hero.col;
+        const scale = figureScale();
+
+        for (let index = 0; index < 9; index++) {
+          const position = cellPosition(index);
+
+          if (index === heroIndex) {
+            drawHero(index, scale);
+          } else {
+            drawCard(index, cards[index], scale);
+          }
+
+          drawCellFeedback(index, position.x, position.y);
+        }
+
+        ctx.restore();
+      }
+
+      function redrawStepsPanel() {
+        ctx.save();
+        if (backgroundCache) {
+          ctx.drawImage(backgroundCache, 56, 178, 608, 108, 56, 178, 608, 108);
+        }
+        drawStepsPanel();
+        ctx.restore();
+      }
+
+      function redrawBoardCell(index) {
+        const position = cellPosition(index);
+        ctx.save();
+        ctx.beginPath();
+        ctx.rect(position.x - 8, position.y - 8, CELL_WIDTH + 16, CELL_HEIGHT + 16);
+        ctx.clip();
+        if (backgroundCache) ctx.drawImage(backgroundCache, 0, 0);
+        drawBoardBase();
+
+        const heroIndex = hero.row * BOARD_SIZE + hero.col;
+        const scale = figureScale();
+        if (index === heroIndex) drawHero(index, scale);
+        else drawCard(index, cards[index], scale);
+        drawCellFeedback(index, position.x, position.y);
+        ctx.restore();
+      }
+
+      function redrawActionFeedbackArea() {
+        ctx.save();
+        ctx.beginPath();
+        ctx.rect(52, 1079, 616, 64);
+        ctx.clip();
+        if (backgroundCache) ctx.drawImage(backgroundCache, 0, 0);
+        drawActionFeedback();
+        ctx.restore();
+      }
+
+      function drawStepUpdate(changedCells) {
+        redrawStepsPanel();
+        changedCells.forEach((index) => redrawBoardCell(index));
+        drawBoardThreatPulse();
+        redrawActionFeedbackArea();
+      }
+
+      function drawAnimatedFrame() {
+        if (gameOver) return;
+        redrawStepsPanel();
+        const cellsToRedraw = new Set();
+        const clearSpawnPulse = !prefersReducedMotion && refillPulse <= 0 && lastSpawnIndex !== null;
+        if (!prefersReducedMotion && lastSpawnIndex !== null) cellsToRedraw.add(lastSpawnIndex);
+        if (feedbackCell !== null) cellsToRedraw.add(feedbackCell);
+        cellsToRedraw.forEach((index) => redrawBoardCell(index));
+        if (clearSpawnPulse) lastSpawnIndex = null;
+        redrawActionFeedbackArea();
+      }
+
+      function drawActionFeedback() {
+        if (isEditMode || feedbackTimer <= 0 || !feedbackText) return;
+        const strength = readTunable(config.effects.strength, 1, 0, 2);
+        const progress = clamp(feedbackTimer / feedbackDuration, 0, 1);
+        const colors = { impact: "#ff7c8d", shield: "#83dcff", heal: "#87f0b5", loot: "#ffd878", threat: "#ff956e" };
+        ctx.save();
+        ctx.globalAlpha = Math.min(1, progress * 1.2);
+        ctx.font = '700 26px "Poppins", sans-serif';
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.shadowColor = colors[feedbackType] || "#ffffff";
+        ctx.shadowBlur = 14 * strength;
+        ctx.fillStyle = colors[feedbackType] || "#ffffff";
+        ctx.fillText(feedbackText, LOGICAL_WIDTH / 2, 1115 - (1 - progress) * 18);
+        ctx.restore();
+      }
+
+      function drawDirectionGlyph(cx, cy) {
+        ctx.save();
+        ctx.strokeStyle = "rgba(114, 232, 206, 0.62)";
+        ctx.fillStyle = "rgba(114, 232, 206, 0.62)";
+        ctx.lineWidth = 2.5;
+        ctx.lineCap = "round";
+
+        ctx.beginPath();
+        ctx.arc(cx, cy, 25, 0, Math.PI * 2);
+        ctx.stroke();
+
+        ctx.beginPath();
+        ctx.moveTo(cx, cy - 10);
+        ctx.lineTo(cx, cy - 1);
+        ctx.moveTo(cx, cy + 10);
+        ctx.lineTo(cx, cy + 1);
+        ctx.moveTo(cx - 10, cy);
+        ctx.lineTo(cx - 1, cy);
+        ctx.moveTo(cx + 10, cy);
+        ctx.lineTo(cx + 1, cy);
+        ctx.stroke();
+
+        ctx.beginPath();
+        ctx.arc(cx, cy, 3.5, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+      }
+
+      function drawHintPanel() {
+        ctx.save();
+        const panel = ctx.createLinearGradient(56, 962, 664, 1110);
+        panel.addColorStop(0, "#382d23");
+        panel.addColorStop(1, "#211b16");
+        roundedRectPath(ctx, 56, 962, 608, 150, 26);
+        ctx.fillStyle = panel;
+        ctx.fill();
+        ctx.strokeStyle = "rgba(151, 111, 73, 0.48)";
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
+        roundedRectPath(ctx, 73, 982, 5, 110, 3);
+        ctx.fillStyle = isEditMode ? "#ffd27a" : "#f59e0b";
+        ctx.fill();
+
+        if (isEditMode) {
+          drawText(ctx, "ARRASTRA UNA ILUSTRACIÓN", 96, 1008,
+            '700 22px "Poppins", sans-serif', "#f2f8fb", "left");
+          drawText(ctx, "Ajusta su posición dentro de la carta.", 96, 1043,
+            '400 18px "Poppins", sans-serif', "#d3c1aa", "left");
+          drawText(ctx, "El movimiento está desactivado en edición.", 96, 1076,
+            '400 17px "Poppins", sans-serif', "#b9a890", "left");
+        } else {
+          drawText(ctx, "REGISTRO DE LA MINA", 96, 1004,
+            '700 18px "Poppins", sans-serif', "#f5b942", "left");
+          const messages = combatLog.length ? combatLog : [
+            touchPreferred ? "Toca una carta vecina para actuar." : "Elige una carta vecina para actuar.",
+            "Escudo absorbe golpes; las trampas dañan la vida directamente.",
+            "Cada movimiento válido añade un paso al marcador."
+          ];
+          messages.slice(0, 3).forEach((message, index) => {
+            fitText(ctx, message, 368, 1032 + index * 25, 525, 15, index === 0 ? "#f2e7d8" : "#c5b49e");
+          });
+        }
+        ctx.restore();
+      }
+
+      function drawGameOver() {
+        if (!gameOver) return;
+        ctx.save();
+        ctx.fillStyle = "rgba(3, 9, 16, 0.78)";
+        ctx.fillRect(0, 0, LOGICAL_WIDTH, LOGICAL_HEIGHT);
+        roundedRectPath(ctx, 56, 348, 608, 566, 34);
+        const modal = ctx.createLinearGradient(56, 348, 664, 914);
+        modal.addColorStop(0, "#403226");
+        modal.addColorStop(1, "#1c1712");
+        ctx.fillStyle = modal;
+        ctx.fill();
+        ctx.strokeStyle = "rgba(255, 135, 148, 0.72)";
+        ctx.lineWidth = 3;
+        ctx.stroke();
+        drawText(ctx, "FIN DE LA PARTIDA", 360, 452,
+          '700 38px "Poppins", sans-serif', "#ff9aa5", "center");
+        drawText(ctx, health <= 0 ? "La mina te ha vencido." : "Aventura terminada.", 360, 504,
+          '500 22px "Poppins", sans-serif', "#d3e0e8", "center");
+
+        const summary = [
+          { label: "PASOS / PUNTUACIÓN", value: String(steps), color: "#e8a83a" },
+          { label: "ORO RECOGIDO", value: String(gold), color: "#ffd878" }
+        ];
+        summary.forEach((item, index) => {
+          const cy = 594 + index * 92;
+          roundedRectPath(ctx, 108, cy - 45, 504, 72, 18);
+          ctx.fillStyle = "rgba(20, 14, 10, 0.58)";
+          ctx.fill();
+          drawText(ctx, item.label, 136, cy - 2,
+            '600 17px "Poppins", sans-serif', "#c9b49a", "left");
+          drawText(ctx, item.value, 574, cy + 3,
+            '700 34px "Poppins", sans-serif', item.color, "right");
+        });
+
+        roundedRectPath(ctx, 108, 790, 504, 82, 22);
+        const button = ctx.createLinearGradient(108, 790, 612, 872);
+        button.addColorStop(0, "#f5b942");
+        button.addColorStop(1, "#d97706");
+        ctx.fillStyle = button;
+        ctx.fill();
+        drawText(ctx, "REINICIAR PARTIDA", 360, 842,
+          '700 24px "Poppins", sans-serif', "#29180a", "center");
+        ctx.restore();
+      }
+
+      function resetGame(startingRun) {
+        paused = false;
+        closePausePanel();
+        cards.fill(null);
+        hero = { row: 1, col: 1 };
+        steps = 0;
+        defeatedEnemies = 0;
+        bossSplitCell = null;
+        bossSpawnPending = false;
+        trapsActive = true;
+        applyPermanentUpgradesToRun();
+        shield = startingRun && activeRunItems.spiritual_elixir ? Math.min(maxShield, 3) : 0;
+        gold = 0;
+        health = initialHealth;
+        immunityStoneUsed = false;
+        runEndedCredited = !startingRun;
+        if (!startingRun) activeRunItems = { spiritual_elixir: false, gold_magnet: false, immunity_stone: false };
+        gameOver = false;
+        syncPauseButton();
+        if (gameOverOverlay) {
+          gameOverOverlay.classList.remove("is-visible");
+          gameOverOverlay.setAttribute("aria-hidden", "true");
+        }
+        feedbackTimer = 0;
+        threatPulseTimer = 0;
+        shieldPulseTimer = 0;
+        healthPulseTimer = 0;
+        feedbackText = "";
+        combatLog.length = 0;
+        lastSpawnIndex = null;
+        refillPulse = 0;
+        populateInitialBoard();
+        if (liveRegion) liveRegion.textContent = "Nueva partida. Salud y tablero reiniciados.";
+        drawGame();
+      }
+
+      async function launchNewRun() {
+        if (activeOperations.has("runStart") || isEditMode) return;
+        setMusicScene("mine");
+        paused = false;
+        closePausePanel();
+        activeOperations.add("runStart");
+        try {
+          await persistenceReady;
+          await profileQueue;
+          const hasStockedConsumables = consumableIds.some((id) => playerProfile.consumables[id] === 1);
+          const stockedItems = hasStockedConsumables
+            ? await mutatePlayerProfile(() => {
+                const selected = {};
+                consumableIds.forEach((id) => {
+                  selected[id] = playerProfile.consumables[id] === 1;
+                  playerProfile.consumables[id] = 0;
+                });
+                return selected;
+              })
+            : { spiritual_elixir: false, gold_magnet: false, immunity_stone: false };
+          activeRunItems = {
+            spiritual_elixir: !!stockedItems.spiritual_elixir,
+            gold_magnet: !!stockedItems.gold_magnet,
+            immunity_stone: !!stockedItems.immunity_stone
+          };
+          immunityStoneUsed = false;
+          closeMenuPanels();
+          resetGame(true);
+          canvas.style.visibility = "visible";
+          menuActive = false;
+          syncPauseButton();
+          if (mainMenuOverlay) {
+            mainMenuOverlay.classList.remove("is-visible");
+            mainMenuOverlay.setAttribute("aria-hidden", "true");
+          }
+          focusCanvas();
+        } catch (error) {
+          if (shopMessage) shopMessage.textContent = "No se pudo preparar la partida. Inténtalo de nuevo.";
+        } finally {
+          activeOperations.delete("runStart");
+          renderShop();
+        }
+      }
+
+      function startFromMainMenu() {
+        launchNewRun();
+      }
+
+      async function returnToMainMenu() {
+        setMusicScene("menu");
+        paused = true;
+        closePausePanel();
+        if (frameHandle) {
+          window.cancelAnimationFrame(frameHandle);
+          frameHandle = 0;
+        }
+        // Ocultar el tablero y mostrar el menú antes de esperar operaciones de guardado,
+        // evitando que la cuadrícula se filtre durante la transición.
+        canvas.style.visibility = "hidden";
+        menuActive = true;
+        syncPauseButton();
+        closeMenuPanels();
+        if (mainMenuOverlay) {
+          mainMenuOverlay.classList.add("is-visible");
+          mainMenuOverlay.setAttribute("aria-hidden", "false");
+        }
+        if (gameOverOverlay) {
+          gameOverOverlay.classList.remove("is-visible");
+          gameOverOverlay.setAttribute("aria-hidden", "true");
+        }
+        creditRunGoldOnce();
+        await profileQueue;
+        await persistenceReady;
+        resetGame(false);
+        menuActive = true;
+        syncPauseButton();
+      }
+
+      function openMenuPanel(panel) {
+        if (!panel) return;
+        closeMenuPanels();
+        panel.hidden = false;
+        panel.setAttribute("aria-hidden", "false");
+      }
+
+      function closeMenuPanels() {
+        [storePanel, rulesPanel, settingsPanel].forEach((panel) => {
+          if (!panel) return;
+          panel.hidden = true;
+          panel.setAttribute("aria-hidden", "true");
+        });
+      }
+
+      function returnFromStoreToMainMenu() {
+        // Both the header X and footer button share this synchronous close path.
+        menuActive = true;
+        closeMenuPanels();
+        if (mainMenuOverlay) {
+          mainMenuOverlay.classList.add("is-visible");
+          mainMenuOverlay.setAttribute("aria-hidden", "false");
+        }
+        if (gameOverOverlay) {
+          gameOverOverlay.classList.remove("is-visible");
+          gameOverOverlay.setAttribute("aria-hidden", "true");
+        }
+        if (liveRegion) liveRegion.textContent = "Tienda cerrada. Menú principal.";
+      }
+
+      function syncPauseButton() {
+        if (pauseButton) pauseButton.hidden = isEditMode || menuActive || gameOver;
+      }
+
+      function closePausePanel() {
+        if (!pauseOverlay) return;
+        pauseOverlay.hidden = true;
+        pauseOverlay.setAttribute("aria-hidden", "true");
+      }
+
+      function openPauseMenu() {
+        if (isEditMode || menuActive || gameOver || paused) return;
+        setMusicScene(null);
+        paused = true;
+        heldKeys.clear();
+        previousFrameTime = 0;
+        if (frameHandle) {
+          window.cancelAnimationFrame(frameHandle);
+          frameHandle = 0;
+        }
+        if (pauseOverlay) {
+          pauseOverlay.hidden = false;
+          pauseOverlay.setAttribute("aria-hidden", "false");
+        }
+        if (liveRegion) liveRegion.textContent = "Juego en pausa. Elige continuar, reiniciar o volver al menú principal.";
+      }
+
+      function resumeGame() {
+        if (!paused || gameOver) return;
+        setMusicScene("mine");
+        paused = false;
+        closePausePanel();
+        previousFrameTime = 0;
+        scheduleAnimationFrame();
+        if (liveRegion) liveRegion.textContent = "Partida reanudada.";
+        focusCanvas();
+      }
+
+      function restartFromPause() {
+        if (!paused || gameOver) return;
+        setMusicScene("mine");
+        paused = false;
+        closePausePanel();
+        resetGame(true);
+        menuActive = false;
+        syncPauseButton();
+        focusCanvas();
+      }
+
+      function onPlayButton() {
+        startFromMainMenu();
+      }
+
+      async function onStoreButton() {
+        setMusicScene("menu");
+        openMenuPanel(storePanel);
+        if (shopMessage) shopMessage.textContent = profileLoaded ? "Compra mejoras permanentes o prepara consumibles." : "Cargando billetera…";
+        await persistenceReady;
+        await profileQueue;
+        renderShop();
+        if (shopMessage) shopMessage.textContent = "Compra mejoras permanentes o prepara consumibles.";
+      }
+
+      async function onShopItemsClick(event) {
+        const button = event.target.closest("button[data-buy-item]");
+        if (!button || !shopItemsElement || activeOperations.has("purchase")) return;
+        const item = shopItems.find((entry) => entry.id === button.dataset.buyItem);
+        if (!item) return;
+        activeOperations.add("purchase");
+        if (shopMessage) shopMessage.textContent = `Procesando compra: ${item.name}…`;
+        renderShop();
+        try {
+          await persistenceReady;
+          const result = await mutatePlayerProfile(() => {
+            if (playerProfile.wallet < item.price) return { ok: false, reason: "funds" };
+            if (item.category === "PERMANENTES" && playerProfile.upgrades[item.id]) return { ok: false, reason: "owned" };
+            if (item.category === "CONSUMIBLES" && playerProfile.consumables[item.id] >= 1) return { ok: false, reason: "stocked" };
+            playerProfile.wallet -= item.price;
+            if (item.category === "PERMANENTES") playerProfile.upgrades[item.id] = true;
+            else playerProfile.consumables[item.id] = 1;
+            return { ok: true };
+          });
+          if (shopMessage) {
+            shopMessage.textContent = result.ok
+              ? `¡${item.name} adquirido! Saldo actualizado.`
+              : result.reason === "funds" ? "Saldo insuficiente para esta compra."
+              : result.reason === "owned" ? "Esta mejora permanente ya está adquirida."
+              : "Ya llevas una unidad de este consumible.";
+          }
+          applyPermanentUpgradesToRun();
+        } catch (error) {
+          if (shopMessage) shopMessage.textContent = "No se pudo completar la compra; inténtalo de nuevo.";
+        } finally {
+          activeOperations.delete("purchase");
+          renderShop();
+        }
+      }
+
+      function onRulesButton() {
+        setMusicScene("menu");
+        openMenuPanel(rulesPanel);
+      }
+
+      function onSettingsButton() {
+        setMusicScene("menu");
+        updateAudioSettingsUI();
+        openMenuPanel(settingsPanel);
+      }
+
+      function onMenuAudioGesture() {
+        if (menuActive) setMusicScene("menu");
+      }
+
+      function drawFooter() {
+        ctx.save();
+        ctx.beginPath();
+        ctx.moveTo(56, 1150);
+        ctx.lineTo(664, 1150);
+        ctx.strokeStyle = "rgba(150, 191, 205, 0.15)";
+        ctx.lineWidth = 1;
+        ctx.stroke();
+
+        drawText(
+          ctx,
+          "CARTAS CON VALORES · SOBREVIVE EN LA MINA",
+          LOGICAL_WIDTH / 2,
+          1190,
+          '600 18px "Poppins", sans-serif',
+          "#829baa",
+          "center"
+        );
+        ctx.restore();
+      }
+
+      function drawGame() {
+        ctx.clearRect(0, 0, LOGICAL_WIDTH, LOGICAL_HEIGHT);
+        if (backgroundCache) ctx.drawImage(backgroundCache, 0, 0);
+        else drawBackground();
+        drawHeader();
+        drawStepsPanel();
+        drawBoard();
+        drawActionFeedback();
+        drawFooter();
+        // Game Over se muestra en el overlay DOM de z-index 9999, sobre todo el canvas.
+      }
+
+      function resizeCanvas() {
+        canvas.width = LOGICAL_WIDTH;
+        canvas.height = LOGICAL_HEIGHT;
+      }
+
+      function onResize() {
+        resizeCanvas();
+        drawGame();
+      }
+
+      function hasActiveAnimation() {
+        if (gameOver || paused) return false;
+        return (!prefersReducedMotion && refillPulse > 0) || feedbackTimer > 0 ||
+          threatPulseTimer > 0 || shieldPulseTimer > 0 || healthPulseTimer > 0;
+      }
+
+      function scheduleAnimationFrame() {
+        if (!disposed && !gameOver && !paused && !frameHandle && hasActiveAnimation()) {
+          frameHandle = window.requestAnimationFrame(frame);
+        }
+      }
+
+      function frame(timestamp) {
+        frameHandle = 0;
+        if (disposed || gameOver || paused) return;
+
+        const deltaTime = previousFrameTime
+          ? clamp((timestamp - previousFrameTime) / 1000, 0, 0.11)
+          : 0;
+        previousFrameTime = timestamp;
+
+        if (!prefersReducedMotion && refillPulse > 0) {
+          refillPulse = Math.max(0, refillPulse - deltaTime);
+        }
+        feedbackTimer = Math.max(0, feedbackTimer - deltaTime);
+        threatPulseTimer = Math.max(0, threatPulseTimer - deltaTime);
+        shieldPulseTimer = Math.max(0, shieldPulseTimer - deltaTime);
+        healthPulseTimer = Math.max(0, healthPulseTimer - deltaTime);
+        if (feedbackTimer <= 0) {
+          feedbackText = "";
+          feedbackCell = null;
+        }
+
+        drawAnimatedFrame();
+        scheduleAnimationFrame();
+      }
+
+      if (liveRegion) {
+        liveRegion.textContent =
+          "Partida lista. Salud: " + health + ". Escudo: 0. El escudo de madera está encima del héroe; el murciélago a la derecha y la trampa a la izquierda. Las trampas empiezan activas: permanecen activas durante dos pasos y seguras durante los dos siguientes. Pasos: 0.";
+      }
+
+      persistenceReady = loadPlayerProfile();
+      preloadSprites();
+      loadSoundAssets();
+      updateAudioSettingsUI();
+
+      canvas.addEventListener("pointerdown", onPointerDown);
+      canvas.addEventListener("pointermove", onPointerMove);
+      if (playButton) playButton.addEventListener("click", onPlayButton);
+      if (pauseButton) pauseButton.addEventListener("click", openPauseMenu);
+      if (pauseContinueButton) pauseContinueButton.addEventListener("click", resumeGame);
+      if (pauseRestartButton) pauseRestartButton.addEventListener("click", restartFromPause);
+      if (pauseMenuButton) pauseMenuButton.addEventListener("click", returnToMainMenu);
+      if (storeButton) storeButton.addEventListener("click", onStoreButton);
+      if (storeCloseButton) storeCloseButton.addEventListener("click", returnFromStoreToMainMenu);
+      if (storeReturnButton) storeReturnButton.addEventListener("click", returnFromStoreToMainMenu);
+      if (shopItemsElement) shopItemsElement.addEventListener("click", onShopItemsClick);
+      if (rulesButton) rulesButton.addEventListener("click", onRulesButton);
+      if (settingsButton) settingsButton.addEventListener("click", onSettingsButton);
+      if (mainMenuOverlay) mainMenuOverlay.addEventListener("pointerdown", onMenuAudioGesture);
+      if (musicVolumeRange) musicVolumeRange.addEventListener("input", onMusicVolumeInput);
+      if (musicMuteButton) musicMuteButton.addEventListener("click", toggleMusicMute);
+      if (sfxVolumeRange) sfxVolumeRange.addEventListener("input", onSfxVolumeInput);
+      if (sfxMuteButton) sfxMuteButton.addEventListener("click", toggleSfxMute);
+      menuPanelCloseButtons.forEach((button) => button.addEventListener("click", closeMenuPanels));
+      if (restartButton) restartButton.addEventListener("click", launchNewRun);
+      if (menuReturnButton) menuReturnButton.addEventListener("click", returnToMainMenu);
+      canvas.addEventListener("pointerup", finishPointer);
+      canvas.addEventListener("pointercancel", finishPointer);
+      canvas.addEventListener("pointerleave", onPointerLeave);
+      window.addEventListener("keydown", onKeyDown);
+      window.addEventListener("keyup", onKeyUp);
+      window.addEventListener("blur", onWindowBlur);
+      window.addEventListener("resize", onResize);
+
+      const cleanup = () => {
+        if (disposed) return;
+        disposed = true;
+        window.cancelAnimationFrame(frameHandle);
+
+        canvas.removeEventListener("pointerdown", onPointerDown);
+        canvas.removeEventListener("pointermove", onPointerMove);
+        if (playButton) playButton.removeEventListener("click", onPlayButton);
+        if (pauseButton) pauseButton.removeEventListener("click", openPauseMenu);
+        if (pauseContinueButton) pauseContinueButton.removeEventListener("click", resumeGame);
+        if (pauseRestartButton) pauseRestartButton.removeEventListener("click", restartFromPause);
+        if (pauseMenuButton) pauseMenuButton.removeEventListener("click", returnToMainMenu);
+        if (storeButton) storeButton.removeEventListener("click", onStoreButton);
+        if (storeCloseButton) storeCloseButton.removeEventListener("click", returnFromStoreToMainMenu);
+        if (storeReturnButton) storeReturnButton.removeEventListener("click", returnFromStoreToMainMenu);
+        if (shopItemsElement) shopItemsElement.removeEventListener("click", onShopItemsClick);
+        if (rulesButton) rulesButton.removeEventListener("click", onRulesButton);
+        if (settingsButton) settingsButton.removeEventListener("click", onSettingsButton);
+        if (mainMenuOverlay) mainMenuOverlay.removeEventListener("pointerdown", onMenuAudioGesture);
+        if (musicVolumeRange) musicVolumeRange.removeEventListener("input", onMusicVolumeInput);
+        if (musicMuteButton) musicMuteButton.removeEventListener("click", toggleMusicMute);
+        if (sfxVolumeRange) sfxVolumeRange.removeEventListener("input", onSfxVolumeInput);
+        if (sfxMuteButton) sfxMuteButton.removeEventListener("click", toggleSfxMute);
+        menuPanelCloseButtons.forEach((button) => button.removeEventListener("click", closeMenuPanels));
+        if (restartButton) restartButton.removeEventListener("click", launchNewRun);
+        if (menuReturnButton) menuReturnButton.removeEventListener("click", returnToMainMenu);
+        canvas.removeEventListener("pointerup", finishPointer);
+        canvas.removeEventListener("pointercancel", finishPointer);
+        canvas.removeEventListener("pointerleave", onPointerLeave);
+        window.removeEventListener("keydown", onKeyDown);
+        window.removeEventListener("keyup", onKeyUp);
+        window.removeEventListener("blur", onWindowBlur);
+        window.removeEventListener("resize", onResize);
+
+        heldKeys.clear();
+        musicTransitionToken += 1;
+        musicPlayers.forEach((player) => {
+          try { player.source.stop(); } catch (error) { /* Ya estaba detenido. */ }
+          try { player.source.disconnect(); player.gain.disconnect(); } catch (error) { /* Limpieza best-effort. */ }
+        });
+        musicPlayers.clear();
+        if (audioContext && audioContext.state !== "closed") audioContext.close().catch(() => {});
+        if (activeCleanup === cleanup) activeCleanup = null;
+      };
+
+      activeCleanup = cleanup;
+      buildBackgroundCache();
+      drawGame();
+      scheduleAnimationFrame();
+
+      // Facilita el control inmediato con teclado; las cartas siguen siendo táctiles.
+      try {
+        canvas.focus({ preventScroll: true });
+      } catch (error) {
+        canvas.focus();
+      }
+    }
+
+    window.run = run;
+  </script>
+<script>
+(function(){function go(){try{window.run("play");}catch(e){console.error(e);}}
+if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",go);else go();})();
+</script>
+
+
+</body></html>
